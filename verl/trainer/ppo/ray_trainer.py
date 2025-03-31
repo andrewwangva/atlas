@@ -858,7 +858,7 @@ class RayPPOTrainer(object):
             with _timer('testing', timing_raw):
                 val_metrics = self._validate()
             pprint(f'Initial validation metrics: {val_metrics}')
-            val_metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
+            val_metrics.update({f'timing_s/{name}': value for name, value in timing_raw.items()})
             logger.log(data=val_metrics, step=self.global_steps)
             if self.config.trainer.get('val_only', False):
                 return
