@@ -754,7 +754,84 @@ class RayPPOTrainer(object):
                                                     partitions=global_partition_lst,
                                                     prefix=logging_prefix)
         metrics.update(global_balance_stats)
+    def filter_by_highest_entropy(self, data: DataProto, n: int, sample_size: int, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
+        """
+        Filter problems to keep those with the highest answer entropy.
+        
+        Args:
+            data: DataProto containing B*n samples (B problems, each with n solutions)
+            n: Number of solutions per problem
+            sample_size: how many to select
+            min_entropy_threshold: Minimum entropy required (problems below this are filtered out)
+            min_correct: Minimum number of correct solutions required (default: 1)
+            
+        Returns:
+            Filtered DataProto containing problems with highest entropy values
+        """
+        # Evaluate correctness for each solution
+        token_rewards = self.reward_fn(data)
+        per_sample_rewards = token_rewards.sum(dim=-1)
+        
+        # Fold into [B, n] shape
+        total_samples = data.batch["responses"].shape[0]
+        B = total_samples // n
+        folded_data = fold_batch_dim(data, new_batch_size=B)
+        
+        # Extract generated texts for entropy computation
+        generated_texts = []
+        uids = data.non_tensor_batch['uid'][:B*n:n]  # Take one UID per problem
+        
+        for i in range(len(folded_data)):
+            data_item = folded_data[i]  # DataProtoItem for all n responses of a problem
+            problem_texts = []
+            
+            for j in range(n):
+                prompt_ids = data_item.batch['prompts'][j]
+                valid_prompt_length = data_item.batch['attention_mask'][j, :prompt_ids.shape[-1]].sum()
+                valid_prompt_ids = prompt_ids[-valid_prompt_length:]
 
+                response_ids = data_item.batch['responses'][j]
+                valid_response_length = data_item.batch['attention_mask'][j, prompt_ids.shape[-1]:].sum()
+                valid_response_ids = response_ids[:valid_response_length]
+                
+                sequences = torch.cat((valid_prompt_ids, valid_response_ids))
+                sequences_str = self.tokenizer.decode(sequences)
+                problem_texts.append(sequences_str)
+            
+            generated_texts.append(problem_texts)
+        
+        # Count correct solutions and calculate entropy for each problem
+        problem_entropies = []
+        for i, problem_texts in enumerate(generated_texts):
+            # Calculate entropy
+            entropy = measure_answer_entropy_using_equiv(solutions=problem_texts)
+            
+            # Count correct solutions for this problem
+            correctness = (per_sample_rewards.view(B, n)[i] > 0.5).sum().item()
+            
+            problem_entropies.append((i, entropy, correctness))
+        
+        # Filter out problems below minimum entropy threshold and with fewer than min_correct correct solutions
+        problem_entropies = [(idx, entropy, correct_count) 
+                            for idx, entropy, correct_count in problem_entropies 
+                            if entropy >= min_entropy_threshold and correct_count >= min_correct]
+        
+        if not problem_entropies:
+            return item_collate_fn([])  # Return empty batch if no problems meet criteria
+        
+        # Sort by entropy (highest first) and take top target_size problems
+        problem_entropies.sort(key=lambda x: x[1], reverse=True)
+        selected_indices = [idx for idx, _, _ in problem_entropies[:sample_size]]
+        
+        # Select the problems with highest entropy
+        selected_data = [folded_data[i] for i in selected_indices]
+        filtered_data = item_collate_fn(selected_data)
+        
+        # Unfold back to flat batch format
+        filtered_data = unfold_batch_dim(filtered_data, len(selected_indices) * n)
+        filtered_data.meta_info = data.meta_info
+        
+        return filtered_data
     def fit(self):
         """
         The training loop of PPO.
@@ -777,8 +854,11 @@ class RayPPOTrainer(object):
         # perform validation before training
         # currently, we only support validation using the reward_function.
         if self.val_reward_fn is not None and self.config.trainer.get('val_before_train', True):
-            val_metrics = self._validate()
+            timing_raw = {}
+            with _timer('testing', timing_raw):
+                val_metrics = self._validate()
             pprint(f'Initial validation metrics: {val_metrics}')
+            val_metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
             logger.log(data=val_metrics, step=self.global_steps)
             if self.config.trainer.get('val_only', False):
                 return
