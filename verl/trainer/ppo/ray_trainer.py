@@ -70,7 +70,7 @@ def is_equiv_fn(ans1: str, ans2: str) -> bool:
         return True
     elif(parsed1 == None or parsed2 == None):
         return False
-    score = math_reward.compute_score(ans1, parsed2)
+    score = float(math_reward.compute_score(ans1, parsed2)[0])
     return (score > 0.5)
     
 
