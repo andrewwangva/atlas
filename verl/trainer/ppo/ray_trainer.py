@@ -880,7 +880,7 @@ class RayPPOTrainer(object):
         problem_entropies = [(idx, entropy, correct_count) 
                             for idx, entropy, correct_count in problem_entropies 
                             if entropy >= min_entropy_threshold and correct_count >= min_correct]
-        
+        print("LENGTH OF ENTROPY", len(problem_entropies))
         if not problem_entropies:
             return item_collate_fn([])  # Return empty batch if no problems meet criteria
         
