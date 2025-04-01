@@ -981,7 +981,7 @@ class RayPPOTrainer(object):
                     # repeat to align with repeated responses in rollout
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     batch = batch.union(gen_batch_output)
-                    if(self.config.actor_rollout_ref.rollout.CL == "entropy"):
+                    if(self.config.data.CL == "entropy"):
                         batch = self.filter_by_highest_entropy(
                             data      = batch,
                             n        =  self.config.actor_rollout_ref.rollout.n,
