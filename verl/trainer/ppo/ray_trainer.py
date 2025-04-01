@@ -839,11 +839,12 @@ class RayPPOTrainer(object):
         # Fold into [B, n] shape
         total_samples = data.batch["responses"].shape[0]
         B = total_samples // n
+        uids = data.non_tensor_batch['uid'][:B*n:n]  # Take one UID per problem
         folded_data = fold_batch_dim(data, new_batch_size=B)
         
         # Extract generated texts for entropy computation
         generated_texts = []
-        uids = data.non_tensor_batch['uid'][:B*n:n]  # Take one UID per problem
+        
         
         for i in range(len(folded_data)):
             data_item = folded_data[i]  # DataProtoItem for all n responses of a problem
@@ -892,7 +893,7 @@ class RayPPOTrainer(object):
         filtered_data = item_collate_fn(selected_data)
         
         # Unfold back to flat batch format
-        filtered_data = unfold_batch_dim(filtered_data, len(selected_indices) * n)
+        filtered_data = unfold_batch_dim(filtered_data)
         filtered_data.meta_info = data.meta_info
         
         return filtered_data
