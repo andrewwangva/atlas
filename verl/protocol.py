@@ -147,6 +147,51 @@ def unfold_batch_dim(data: 'DataProto', batch_dims=2):
 
     return DataProto(batch=tensor, non_tensor_batch=non_tensor_new, meta_info=data.meta_info)
 
+def fold_batch_dim(data: 'DataProto', new_batch_size):
+    """
+    Fold a batch dim from [bsz, xxx] into [new_bsz, bsz // new_bsz, xxx]
+    """
+    batch_size = data.batch.batch_size[0]
+
+    assert batch_size % new_batch_size == 0
+
+    tensor: TensorDict = data.batch
+    non_tensor = data.non_tensor_batch
+    new_non_tensor = {}
+    tensor = tensor.view(new_batch_size, -1)
+    tensor.auto_batch_size_(batch_dims=1)
+    for key, val in non_tensor.items():
+        new_non_tensor[key] = np.reshape(val, newshape=(new_batch_size, -1, *val.shape[1:]))
+    return DataProto(batch=tensor, non_tensor_batch=new_non_tensor, meta_info=data.meta_info)
+
+def unfold_batch_dim(data: 'DataProto', batch_dims=2):
+    """
+    Unfold the first n dims as new batch dim
+    """
+    tensor: TensorDict = data.batch
+    non_tensor = data.non_tensor_batch
+    tensor.auto_batch_size_(batch_dims=batch_dims)
+    tensor = tensor.view(-1)
+
+    batch_size = tensor.batch_size[0]
+
+    non_tensor_new = {}
+
+    for key, val in non_tensor.items():
+        non_tensor_new[key] = np.reshape(val, newshape=(batch_size, *val.shape[batch_dims:]))
+
+    return DataProto(batch=tensor, non_tensor_batch=non_tensor_new, meta_info=data.meta_info)
+
+def list_of_dict_to_dict_of_list(list_of_dict: list[dict]):
+    if len(list_of_dict) == 0:
+        return {}
+    keys = list_of_dict[0].keys()
+    output = {key: [] for key in keys}
+    for data in list_of_dict:
+        for key, item in data.items():
+            assert key in output
+            output[key].append(item)
+    return output
 
 def collate_fn(x: list['DataProtoItem']):
     batch = []

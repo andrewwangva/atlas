@@ -31,7 +31,7 @@ import numpy as np
 from codetiming import Timer
 from omegaconf import OmegaConf, open_dict
 from verl import DataProto
-from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
+from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto, fold_batch_dim, unfold_batch_dim, list_of_dict_to_dict_of_list
 from verl.single_controller.base import Worker
 from verl.single_controller.ray import RayResourcePool, RayWorkerGroup, RayClassWithInitArgs
 from verl.single_controller.ray.base import create_colocated_worker_cls
@@ -43,9 +43,73 @@ from verl.utils.dataset.rl_dataset import RLHFDataset, collate_fn
 from verl.utils.tracking import ValidationGenerationsLogger
 from torch.utils.data import RandomSampler, SequentialSampler
 from torchdata.stateful_dataloader import StatefulDataLoader
+from verl.utils.reward_score import prime_math as math_reward
 
 WorkerType = Type[Worker]
 
+def item_collate_fn(x: list['DataProtoItem']):
+    if(len(x) == 0):
+        empty_batch = TensorDict({}, batch_size=[0])
+        empty_non_tensor_batch = {}
+        return DataProto(batch=empty_batch, non_tensor_batch=empty_non_tensor_batch)
+    batch = []
+    non_tensor_batch = []
+    for data in x:
+        batch.append(data.batch)
+        non_tensor_batch.append(data.non_tensor_batch)
+    batch = torch.stack(batch).contiguous()
+    non_tensor_batch = list_of_dict_to_dict_of_list(non_tensor_batch)
+    for key, val in non_tensor_batch.items():
+        non_tensor_batch[key] = np.array(val, dtype=object)
+    return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
+
+def is_equiv_fn(ans1: str, ans2: str) -> bool:
+    parsed1 = math_reward._last_boxed_only_string(ans1)
+    parsed2 = math_reward._last_boxed_only_string(ans2)
+    if(parsed1 == None and parsed2 == None):
+        return True
+    elif(parsed1 == None or parsed2 == None):
+        return False
+    score = math_reward.compute_score(ans1, parsed2)
+    return (score > 0.5)
+    
+
+def measure_answer_entropy_using_equiv(
+    solutions: list[str]
+) -> float:
+    """
+    Clusters `solutions` into equivalence classes using the given `is_equiv_fn(answer1, answer2)->bool`.
+    Then computes the empirical distribution of these classes and returns the base-2 entropy.
+
+    solutions: A list of raw strings for a single problem's multiple solutions.
+    is_equiv_fn: a function that takes (ans1, ans2) => bool
+
+    Return:
+        entropy (float): -sum p_i log2 p_i
+    """
+    if not solutions:
+        return 0.0
+
+    clusters = []
+    # For each solution, see if it belongs to an existing cluster
+    for sol in solutions:
+        found_cluster = False
+        for cluster in clusters:
+            if is_equiv_fn(sol, cluster[0]):
+                cluster.append(sol)
+                found_cluster = True
+                break
+        if not found_cluster:
+            # Start a new cluster with sol as the representative
+            clusters.append([sol])
+
+    total_count = len(solutions)
+    cluster_sizes = np.array([len(c) for c in clusters], dtype=float)
+    p = cluster_sizes / total_count
+    # base-2 entropy
+    entropy = -np.sum(p * np.log2(p + 1e-12))
+
+    return float(entropy)
 
 class Role(Enum):
     """
@@ -409,7 +473,7 @@ class RayPPOTrainer(object):
             sampler = SequentialSampler(data_source=self.train_dataset)
 
         self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
-                                                   batch_size=self.config.data.train_batch_size,
+                                                   batch_size=self.config.data.gen_batch_size,
                                                    num_workers=8,
                                                    drop_last=True,
                                                    collate_fn=collate_fn,
@@ -917,7 +981,12 @@ class RayPPOTrainer(object):
                     # repeat to align with repeated responses in rollout
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     batch = batch.union(gen_batch_output)
-
+                    if(self.config.actor_rollout_ref.rollout.CL == "entropy"):
+                        batch = self.filter_by_highest_entropy(
+                            data      = batch,
+                            n        =  self.config.actor_rollout_ref.rollout.n,
+                            sample_size = self.config.data.train_batch_size,
+                        )
                     batch.batch['response_mask'] = compute_response_mask(batch)
                     # balance the number of valid tokens on each dp rank.
                     # Note that this breaks the order of data inside the batch.
