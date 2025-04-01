@@ -109,7 +109,7 @@ def fold_batch_dim(data: 'DataProto', new_batch_size):
     non_tensor = data.non_tensor_batch
     new_non_tensor = {}
     tensor = tensor.view(new_batch_size, -1)
-    tensor.auto_batch_size_(batch_dims=2)
+    tensor.auto_batch_size_(batch_dims=1)
     for key, val in non_tensor.items():
         new_non_tensor[key] = np.reshape(val, newshape=(new_batch_size, -1, *val.shape[1:]))
     return DataProto(batch=tensor, non_tensor_batch=new_non_tensor, meta_info=data.meta_info)
@@ -127,7 +127,7 @@ def unfold_batch_dim(data: 'DataProto', batch_dims=2):
 
     tensor = tensor.view(flattened_batch_size, *tensor.shape[batch_dims:])
     tensor.auto_batch_size_(batch_dims=1)
-    
+
     unfolded_non_tensor = {}
     for key, val in non_tensor.items():
         new_shape = (flattened_batch_size, *val.shape[batch_dims:])
