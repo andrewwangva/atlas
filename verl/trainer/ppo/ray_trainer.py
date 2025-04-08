@@ -1039,7 +1039,7 @@ class RayPPOTrainer(object):
                     accumulated_size += len(batch)
                     if(accumulated_size < self.config.data.train_batch_size*self.config.actor_rollout_ref.rollout.n):
                         print("Current Batch Size: ", accumulated_size)
-                        print("Needed Batch Size: ", self.config.data.train_batch_size*n)
+                        print("Needed Batch Size: ", self.config.data.train_batch_size*self.config.actor_rollout_ref.rollout.n)
                         continue
                     accumulated_batches = [
                         b for b in accumulated_batches
