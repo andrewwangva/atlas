@@ -1043,7 +1043,7 @@ class RayPPOTrainer(object):
                         if len(b) and len(b.batch.keys()) > 0
                     ]
                     batch = DataProto.concat(accumulated_batches)
-                    batch = batch.splice(self.config.data.train_batch_size*n)
+                    batch = batch.splice(self.config.data.train_batch_size*self.config.actor_rollout_ref.rollout.n)
                     accumulated_batches = []
                     accumulated_size = 0
                     batch.batch['response_mask'] = compute_response_mask(batch)
