@@ -552,7 +552,42 @@ class DataProto:
         indices_np = indices.detach().numpy()
         self.batch = self.batch[indices]
         self.non_tensor_batch = {key: val[indices_np] for key, val in self.non_tensor_batch.items()}
-
+    def splice(self, n: int) -> 'DataProto':
+        """
+        Extract the first n elements from a DataProto object.
+        
+        Args:
+            n (int): Number of elements to extract from the beginning
+            
+        Returns:
+            DataProto: A new DataProto containing the first n elements
+            
+        Raises:
+            ValueError: If n is larger than the length of the DataProto
+        """
+        if n > len(self):
+            raise ValueError(f"Cannot splice {n} elements from DataProto of length {len(self)}")
+        
+        if n == 0:
+            return DataProto(batch=None, non_tensor_batch={}, meta_info=self.meta_info)
+        
+        # Extract the first n elements from the batch
+        if self.batch is not None:
+            spliced_batch = self.batch[:n]
+        else:
+            spliced_batch = None
+        
+        # Extract the first n elements from non_tensor_batch
+        spliced_non_tensor = {}
+        for key, val in self.non_tensor_batch.items():
+            spliced_non_tensor[key] = val[:n]
+        
+        # Keep the same meta_info
+        return DataProto(
+            batch=spliced_batch,
+            non_tensor_batch=spliced_non_tensor,
+            meta_info=self.meta_info
+        )
     def repeat(self, repeat_times=2, interleave=True):
         """
         Repeat the batch data a specified number of times.
