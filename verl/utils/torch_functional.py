@@ -114,10 +114,10 @@ def masked_sum(values, mask, axis=None):
     """Compute mean of tensor with a masked values."""
     return (values * mask).sum(axis=axis)
 
-
+MAX_TOKEN_LEN = 4096
 def masked_mean(values, mask, axis=None):
     """Compute mean of tensor with a masked values."""
-    return (values * mask).sum(axis=axis) / (mask.sum(axis=axis) + 1e-8)
+    return (values * mask).sum(axis=axis) / MAX_TOKEN_LEN
 
 
 def masked_var(values, mask, unbiased=True):

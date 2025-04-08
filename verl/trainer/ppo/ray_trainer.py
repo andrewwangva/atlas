@@ -818,6 +818,41 @@ class RayPPOTrainer(object):
                                                     partitions=global_partition_lst,
                                                     prefix=logging_prefix)
         metrics.update(global_balance_stats)
+    def filter_by_correctness(self, data: DataProto, min_correct, max_correct, n) -> DataProto:
+        """
+        Given a DataProto of shape [B*n], evaluate correctness of each of the n responses per problem
+        using `reward_fn`. Drop entire problems that don't have at least `min_correct` correct solutions.
+        """
+        token_level_rewards = self.reward_fn(data)  # shape (B*n, seq_len)
+        per_sample_rewards = token_level_rewards.sum(dim=-1)  # shape (B*n,)
+
+        # 3) Fold the batch into [B, n], with B=number_of_problems, n=responses/problem.
+        total_size = data.batch["responses"].shape[0]          # should be B*n
+        B = total_size // n             # original number of problems
+        folded_data = fold_batch_dim(data, new_batch_size=B)  # shape => [B, n]
+
+        # 4) Reshape the rewards accordingly => (B, n).
+        per_sample_rewards = per_sample_rewards.view(B, n)
+
+        # 5) Decide correctness. For example, threshold=0.5 or 0.0, etc. Adjust as needed.
+        correctness_mask = (per_sample_rewards > 0.5)
+        num_correct_each = correctness_mask.sum(dim=-1)  # shape (B,)
+
+        # 6) Which problems have at least `min_correct` correct solutions?
+        keep_problem_indices = torch.nonzero((num_correct_each >= min_correct) & (num_correct_each <= max_correct)).squeeze(-1)  # shape (K,)
+
+        # 7) Filter out problems that don't meet the threshold => now shape (K, n).
+        # Extract and combine selected indices into a new DataProto
+        selected_data = [folded_data[i] for i in keep_problem_indices]
+        
+
+        filtered_data = item_collate_fn(selected_data)
+
+        # 8) Unfold back to single dimension => [K*n]
+        filtered_data = unfold_batch_dim(filtered_data)
+        filtered_data.meta_info = data.meta_info
+
+        return filtered_data
     def filter_by_highest_entropy(self, data: DataProto, n: int, sample_size: int, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
         """
         Filter problems to keep those with the highest answer entropy.
@@ -839,7 +874,6 @@ class RayPPOTrainer(object):
         # Fold into [B, n] shape
         total_samples = data.batch["responses"].shape[0]
         B = total_samples // n
-        uids = data.non_tensor_batch['uid'][:B*n:n]  # Take one UID per problem
         folded_data = fold_batch_dim(data, new_batch_size=B)
         
         # Extract generated texts for entropy computation
@@ -934,6 +968,10 @@ class RayPPOTrainer(object):
         # we start from step 1
         self.global_steps += 1
         last_val_metrics = None
+        
+
+        accumulated_batches = []
+        accumulated_size = 0
 
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
@@ -988,6 +1026,24 @@ class RayPPOTrainer(object):
                             n        =  self.config.actor_rollout_ref.rollout.n,
                             sample_size = self.config.data.train_batch_size,
                         )
+                    elif(self.config.data.CL == "bound"):
+                        batch = self.filter_by_correctness(
+                            data      = batch,
+                            n        =  self.config.actor_rollout_ref.rollout.n,
+                            sample_size = self.config.data.train_batch_size,
+                        )
+
+                    accumulated_batches.append(batch)
+                    accumulated_size += len(batch)
+
+                    accumulated_batches = [
+                        b for b in accumulated_batches
+                        if len(b) and len(b.batch.keys()) > 0
+                    ]
+                    batch = DataProto.concat(accumulated_batches)
+                    batch = batch.splice(self.config.data.train_batch_size*n)
+                    accumulated_batches = []
+                    accumulated_size = 0
                     batch.batch['response_mask'] = compute_response_mask(batch)
                     # balance the number of valid tokens on each dp rank.
                     # Note that this breaks the order of data inside the batch.
