@@ -853,7 +853,7 @@ class RayPPOTrainer(object):
         filtered_data.meta_info = data.meta_info
 
         return filtered_data
-    def filter_by_highest_entropy(self, data: DataProto, n: int, sample_size: int, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
+    def filter_by_highest_entropy(self, data: DataProto, n: int, sample_size: int, metrics, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
         """
         Filter problems to keep those with the highest answer entropy.
         
@@ -901,6 +901,7 @@ class RayPPOTrainer(object):
         
         # Count correct solutions and calculate entropy for each problem
         problem_entropies = []
+        correctness_bins = {i: 0 for i in range(n+1)}
         for i, problem_texts in enumerate(generated_texts):
             # Calculate entropy
             entropy = measure_answer_entropy_using_equiv(solutions=problem_texts)
@@ -909,7 +910,9 @@ class RayPPOTrainer(object):
             correctness = (per_sample_rewards.view(B, n)[i] > 0.5).sum().item()
             
             problem_entropies.append((i, entropy, correctness))
-        
+            correctness_bins[correctness] += 1
+        print("CORRECTNESS", correctness_bins)
+        metrics.update({f"CL/{correctness_level}": count for correctness_level, count in correctness_bins.items()})
         # Filter out problems below minimum entropy threshold and with fewer than min_correct correct solutions
         problem_entropies = [(idx, entropy, correct_count) 
                             for idx, entropy, correct_count in problem_entropies 
@@ -930,7 +933,7 @@ class RayPPOTrainer(object):
         filtered_data = unfold_batch_dim(filtered_data)
         filtered_data.meta_info = data.meta_info
         
-        return filtered_data
+        return filtered_data, metrics
     def fit(self):
         """
         The training loop of PPO.
