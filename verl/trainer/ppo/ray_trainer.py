@@ -1028,6 +1028,7 @@ class RayPPOTrainer(object):
                             data      = batch,
                             n        =  self.config.actor_rollout_ref.rollout.n,
                             sample_size = self.config.data.train_batch_size,
+                            metrics = metrics,
                         )
                     elif(self.config.data.CL == "bound"):
                         assert self.config.actor_rollout_ref.rollout.low_bound >= 0 and self.config.actor_rollout_ref.rollout.high_bound >= 0, "CL was set to bound but no bounds given!"
