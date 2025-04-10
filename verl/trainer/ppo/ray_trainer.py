@@ -933,7 +933,7 @@ class RayPPOTrainer(object):
         filtered_data = unfold_batch_dim(filtered_data)
         filtered_data.meta_info = data.meta_info
         
-        return filtered_data, metrics
+        return filtered_data
     def fit(self):
         """
         The training loop of PPO.
