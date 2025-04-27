@@ -1114,39 +1114,6 @@ class RayPPOTrainer(object):
         accumulated_size = 0
 
         for epoch in range(self.config.trainer.total_epochs):
-            if epoch == 1:
-                # Recreate the train dataloader with double the batch size
-                batch_size = 2 * self.config.data.gen_batch_size
-
-                if self.config.data.shuffle:
-                    train_dataloader_generator = torch.Generator()
-                    train_dataloader_generator.manual_seed(self.config.data.get('seed', 1))
-                    sampler = RandomSampler(data_source=self.train_dataset, generator=train_dataloader_generator)
-                else:
-                    sampler = SequentialSampler(data_source=self.train_dataset)
-
-                self.train_dataloader = StatefulDataLoader(
-                    dataset=self.train_dataset,
-                    batch_size=batch_size,
-                    num_workers=8,
-                    drop_last=True,
-                    collate_fn=collate_fn,
-                    sampler=sampler
-                )
-
-                # Recalculate total training steps with new batch size for subsequent epochs
-                steps_remaining = self.config.trainer.total_epochs - epoch
-                batches_per_epoch = len(self.train_dataloader)
-                self.total_training_steps = self.global_steps + steps_remaining * batches_per_epoch
-                print(f"[Epoch 1+] Updated training steps: {self.total_training_steps}")
-
-                # Also update optimizer total_training_steps
-                OmegaConf.set_struct(self.config, True)
-                with open_dict(self.config):
-                    self.config.actor_rollout_ref.actor.optim.total_training_steps = self.total_training_steps
-                    if self.use_critic:
-                        self.config.critic.optim.total_training_steps = self.total_training_steps
-
             for batch_dict in self.train_dataloader:
                 metrics = {}
                 timing_raw = {}
