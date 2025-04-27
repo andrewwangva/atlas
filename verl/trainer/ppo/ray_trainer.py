@@ -291,6 +291,143 @@ def _timer(name: str, timing_raw: Dict[str, float]):
         yield
     timing_raw[name] = timer.last
 
+import random
+
+class CurriculumSampler(Sampler):
+    def __init__(self, dataset, device='cuda', refresh_every=5, batch_size=32):
+        self.dataset = dataset
+        self.device = device
+        self.active_problem_indices = []  # list of ints
+        self.batch_size = batch_size
+        self.problem_n = {}  # index -> n (repetitions)
+        self.step_counter = 0
+        self.refresh_every = 5
+
+    def _initial_sample(self):
+        """Sample 512 problems, run 8 trials each, and assign n."""
+        indices = random.sample(range(len(self.dataset)), 512)
+        self.active_problems = indices
+        self.problem_n = {}
+
+        for idx in indices:
+            n_correct = self._simulate_trials(idx, n_trials=8)
+            if n_correct > 4:
+                continue  # discard problem
+            if n_correct == 0:
+                n = 32
+            elif n_correct == 1:
+                n = 16
+            elif n_correct == 2:
+                n = 8
+            elif n_correct in [3, 4]:
+                n = 4
+            self.problem_n[idx] = n
+
+    def _simulate_trials(self, indices, n_trials=8):
+        """
+        Simulate n_trials per problem for a batch of problems at once.
+
+        Args:
+            indices: list of problem indices to evaluate
+            n_trials: number of trials per problem
+
+        Updates:
+            self.problem_n dictionary mapping problem idx -> n
+        """
+
+        # Step 1: Gather problems n_trials times
+        batch = {
+            "prompt": [],
+            "prompt_token_ids": [],
+            "prompt_token_mask": [],
+            "prompt_length": [],
+            "target_output": [],
+        }
+        batch_indices = []
+
+        for idx in indices:
+            problem = self.dataset[idx]
+
+            for _ in range(n_trials):
+                batch["prompt"].append(problem["prompt"])
+                batch["prompt_token_ids"].append(problem["input_ids"])
+                batch["prompt_token_mask"].append(torch.ones_like(problem["input_ids"]))
+                batch["prompt_length"].append(torch.tensor(len(problem["input_ids"])))
+                batch["target_output"].append(problem.get("labels", None))
+
+                batch_indices.append(idx)
+
+        # Step 2: Tensorize the batch properly
+        batch = {
+            k: (torch.stack(v) if isinstance(v[0], torch.Tensor) else v)
+            for k, v in batch.items()
+        }
+
+        # Step 3: Create a single DataProto
+        batch_proto = DataProto.from_single_dict(batch)
+
+        # Step 4: Generate outputs
+        generated_sequences = self.actor_rollout_wg.generate_sequences(batch_proto)
+
+        # Step 5: Count correct answers
+        correct_counts = {idx: 0 for idx in indices}
+
+        for sequence, idx in zip(generated_sequences, batch_indices):
+            predicted_ids = sequence["output_token_ids"]
+            true_ids = self.dataset[idx]["labels"]
+
+            if true_ids is None:
+                continue
+
+            min_len = min(len(predicted_ids), len(true_ids))
+            predicted_ids = predicted_ids[:min_len]
+            true_ids = true_ids[:min_len]
+
+            if torch.equal(predicted_ids, true_ids):
+                correct_counts[idx] += 1
+
+        # Step 6: Assign n
+        for idx in indices:
+            n_correct = correct_counts[idx]
+
+            if n_correct > 4:
+                continue  # discard
+            if n_correct == 0:
+                self.problem_n[idx] = 32
+            elif n_correct == 1:
+                self.problem_n[idx] = 16
+            elif n_correct == 2:
+                self.problem_n[idx] = 8
+            elif n_correct in [3, 4]:
+                self.problem_n[idx] = 4
+    def __iter__(self):
+        if self.step_counter % self.refresh_every == 0 or len(self.problem_n) == 0:
+            self._initial_sample()
+
+        batch = []
+        problems = list(self.problem_n.keys())
+        random.shuffle(problems)
+
+        for idx in problems:
+            batch.append(idx)
+            self.problem_n[idx] -= 1
+            if self.problem_n[idx] == 0:
+                del self.problem_n[idx]
+
+            if len(batch) == self.batch_size:
+                yield from batch
+                batch = []
+
+        # If there are leftover problems (batch incomplete at end)
+        if batch:
+            yield from batch
+
+        self.step_counter += 1
+
+    def __len__(self):
+        # Not exact; length changes dynamically. We assume a large enough number.
+        return sum(self.problem_n.values())
+
 
 class RayPPOTrainer(object):
     """
@@ -470,8 +607,8 @@ class RayPPOTrainer(object):
             train_dataloader_generator.manual_seed(self.config.data.get('seed', 1))
             sampler = RandomSampler(data_source=self.train_dataset, generator=train_dataloader_generator)
         else:
-            sampler = SequentialSampler(data_source=self.train_dataset)
-
+            sampler = CurriculumSampler(dataset)
+        
         self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
                                                    batch_size=self.config.data.gen_batch_size,
                                                    num_workers=8,
