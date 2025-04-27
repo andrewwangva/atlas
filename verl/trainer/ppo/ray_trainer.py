@@ -607,7 +607,7 @@ class RayPPOTrainer(object):
             train_dataloader_generator.manual_seed(self.config.data.get('seed', 1))
             sampler = RandomSampler(data_source=self.train_dataset, generator=train_dataloader_generator)
         else:
-            sampler = CurriculumSampler(dataset, batch_size = self.config.data.gen_batch_size)
+            sampler = CurriculumSampler(self.train_dataset, batch_size = self.config.data.gen_batch_size)
         
         self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
                                                    batch_size=self.config.data.gen_batch_size,
