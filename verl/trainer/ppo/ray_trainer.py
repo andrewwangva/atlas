@@ -323,13 +323,7 @@ class CurriculumSampler(Sampler):
         """
 
         # Step 1: Gather problems n_trials times
-        batch = {
-            "prompt": [],
-            "prompt_token_ids": [],
-            "prompt_token_mask": [],
-            "prompt_length": [],
-            "target_output": [],
-        }
+        batch = {}
         batch_indices = []
 
         for idx in indices:
@@ -337,19 +331,21 @@ class CurriculumSampler(Sampler):
 
             for _ in range(n_trials):
                 print("Keys", problem.keys())
-                batch["prompt"].append(problem["prompt"])
-                batch["prompt_token_ids"].append(problem["input_ids"])
-                batch["prompt_token_mask"].append(torch.ones_like(problem["input_ids"]))
-                batch["prompt_length"].append(torch.tensor(len(problem["input_ids"])))
-                batch["target_output"].append(problem.get("labels", None))
+
+                for key, value in problem.items():
+                    if key not in batch:
+                        batch[key] = []
+
+                    batch[key].append(value)
 
                 batch_indices.append(idx)
 
         # Step 2: Tensorize the batch properly
-        batch = {
-            k: (torch.stack(v) if isinstance(v[0], torch.Tensor) else v)
-            for k, v in batch.items()
-        }
+        for k, v in batch.items():
+            if isinstance(v[0], torch.Tensor):
+                batch[k] = torch.stack(v)
+            else:
+                batch[k] = v
 
         # Step 3: Create a single DataProto
         batch_proto = DataProto.from_single_dict(batch)
