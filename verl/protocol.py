@@ -600,7 +600,7 @@ class DataProto:
             DataProto: A new DataProto with repeated data.
         """
         if isinstance(repeat_times, int):
-        repeat_times = torch.full((len(self),), repeat_times, device=self.batch.device)
+            repeat_times = torch.full((len(self),), repeat_times, device=self.batch.device)
 
         assert isinstance(repeat_times, torch.Tensor), "repeat_times must be int or Tensor"
 
