@@ -309,20 +309,7 @@ class CurriculumSampler(Sampler):
         self.active_problems = indices
         self.problem_n = {}
 
-        for idx in indices:
-            n_correct = self._simulate_trials(idx, n_trials=8)
-            if n_correct > 4:
-                continue  # discard problem
-            if n_correct == 0:
-                n = 32
-            elif n_correct == 1:
-                n = 16
-            elif n_correct == 2:
-                n = 8
-            elif n_correct in [3, 4]:
-                n = 4
-            self.problem_n[idx] = n
-
+        self._simulate_trials(indices, n_trials=8)
     def _simulate_trials(self, indices, n_trials=8):
         """
         Simulate n_trials per problem for a batch of problems at once.
