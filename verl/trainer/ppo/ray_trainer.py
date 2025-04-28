@@ -330,8 +330,6 @@ class CurriculumSampler(Sampler):
             problem = self.dataset[idx]
 
             for _ in range(n_trials):
-                print("Keys", problem.keys())
-
                 for key, value in problem.items():
                     if key not in batch:
                         batch[key] = []
@@ -341,11 +339,7 @@ class CurriculumSampler(Sampler):
                 batch_indices.append(idx)
 
         # Step 2: Tensorize the batch properly
-        for k, v in batch.items():
-            if isinstance(v[0], torch.Tensor):
-                batch[k] = torch.stack(v)
-            else:
-                batch[k] = v
+        batch = {k: torch.stack(v) for k, v in batch.items()}
 
         # Step 3: Create a single DataProto
         batch_proto = DataProto.from_single_dict(batch)
