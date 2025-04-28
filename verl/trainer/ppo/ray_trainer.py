@@ -335,7 +335,7 @@ class CurriculumSampler(Sampler):
         # Step 5: Count correct answers
         correct_counts = {idx: 0 for idx in indices}
 
-        for sequence, idx in zip(generated_sequences, batch_indices):
+        for sequence, idx in zip(generated_sequences, indices):
             predicted_ids = sequence["output_token_ids"]
             true_ids = self.dataset[idx]["labels"]
 
