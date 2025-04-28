@@ -322,24 +322,8 @@ class CurriculumSampler(Sampler):
             self.problem_n dictionary mapping problem idx -> n
         """
 
-        # Step 1: Gather problems n_trials times
-        batch = {}
-        batch_indices = []
-
-        for idx in indices:
-            problem = self.dataset[idx]
-
-            for _ in range(n_trials):
-                for key, value in problem.items():
-                    if key not in batch:
-                        batch[key] = []
-
-                    batch[key].append(value)
-
-                batch_indices.append(idx)
-
-        # Step 2: Tensorize the batch properly
-        batch = {k: torch.stack(v) for k, v in batch.items()}
+        problems = [self.dataset[idx] for idx in indices for _ in range(n_trials)]
+        batch = collate_fn(problems)
 
         # Step 3: Create a single DataProto
         batch_proto = DataProto.from_single_dict(batch)
