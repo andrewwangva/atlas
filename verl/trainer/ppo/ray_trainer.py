@@ -294,8 +294,9 @@ def _timer(name: str, timing_raw: Dict[str, float]):
 import random
 
 class CurriculumSampler(Sampler):
-    def __init__(self, dataset, device='cuda', refresh_every=5, batch_size=32):
+    def __init__(self, dataset, actor_rollout_wg, device='cuda', refresh_every=5, batch_size=32):
         self.dataset = dataset
+        self.actor_rollout_wg = actor_rollout_wg
         self.device = device
         self.active_problem_indices = []  # list of ints
         self.batch_size = batch_size
@@ -568,7 +569,7 @@ class RayPPOTrainer(object):
             train_dataloader_generator.manual_seed(self.config.data.get('seed', 1))
             sampler = RandomSampler(data_source=self.train_dataset, generator=train_dataloader_generator)
         else:
-            sampler = CurriculumSampler(self.train_dataset, batch_size = self.config.data.gen_batch_size)
+            sampler = CurriculumSampler(self.train_dataset, actor_rollout_wg=self.actor_rollout_wg, batch_size = self.config.data.gen_batch_size)
         
         self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
                                                    batch_size=self.config.data.gen_batch_size,
