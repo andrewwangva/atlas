@@ -294,9 +294,10 @@ def _timer(name: str, timing_raw: Dict[str, float]):
 import random
 
 class CurriculumSampler(Sampler):
-    def __init__(self, dataset, actor_rollout_wg, device='cuda', refresh_every=5, batch_size=32):
+    def __init__(self, dataset, actor_rollout_wg, reward_fn, device='cuda', refresh_every=5, batch_size=32):
         self.dataset = dataset
         self.actor_rollout_wg = actor_rollout_wg
+        self.reward_fn = reward_fn
         self.device = device
         self.active_problem_indices = []  # list of ints
         self.batch_size = batch_size
@@ -330,25 +331,26 @@ class CurriculumSampler(Sampler):
         batch_proto = DataProto.from_single_dict(batch)
 
         # Step 4: Generate outputs
-        generated_sequences = self.actor_rollout_wg.generate_sequences(batch_proto)
+        gen_batch_output = self.actor_rollout_wg.generate_sequences(batch_proto)
 
         # Step 5: Count correct answers
         correct_counts = {idx: 0 for idx in indices}
+        
+        batch = batch.repeat(repeat_times=8, interleave=True)
+        batch = batch.union(gen_batch_output)
 
-        for sequence, idx in zip(generated_sequences, indices):
-            predicted_ids = sequence["output_token_ids"]
-            true_ids = self.dataset[idx]["labels"]
+        token_rewards = self.reward_fn(batch)
+        per_sample_rewards = token_rewards.sum(dim=-1)
+        
+        per_sample_rewards = per_sample_rewards.view(B, n)
 
-            if true_ids is None:
-                continue
-
-            min_len = min(len(predicted_ids), len(true_ids))
-            predicted_ids = predicted_ids[:min_len]
-            true_ids = true_ids[:min_len]
-
-            if torch.equal(predicted_ids, true_ids):
-                correct_counts[idx] += 1
-
+        # 5) Decide correctness. For example, threshold=0.5 or 0.0, etc. Adjust as needed.
+        correctness_mask = (per_sample_rewards > 0.5)
+        print(type(correctness_mask), correctness_mask.shape)
+        for is_correct, idx in zip(correctness_mask, indices):
+            correct_counts[idx] += is_correct.sum(-1)
+        
+        
         # Step 6: Assign n
         for idx in indices:
             n_correct = correct_counts[idx]
@@ -570,7 +572,8 @@ class RayPPOTrainer(object):
             train_dataloader_generator.manual_seed(self.config.data.get('seed', 1))
             sampler = RandomSampler(data_source=self.train_dataset, generator=train_dataloader_generator)
         else:
-            sampler = CurriculumSampler(self.train_dataset, actor_rollout_wg=self.actor_rollout_wg, batch_size = self.config.data.gen_batch_size)
+            sampler = CurriculumSampler(self.train_dataset, actor_rollout_wg=self.actor_rollout_wg, 
+                                        reward_fn = self.reward_fn, batch_size = self.config.data.gen_batch_size)
         
         self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
                                                    batch_size=self.config.data.gen_batch_size,
