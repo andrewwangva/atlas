@@ -336,10 +336,10 @@ class CurriculumSampler(Sampler):
         # Step 5: Count correct answers
         correct_counts = {idx: 0 for idx in indices}
         
-        batch = batch.repeat(repeat_times=8, interleave=True)
-        batch = batch.union(gen_batch_output)
+        batch_proto = batch_proto.repeat(repeat_times=8, interleave=True)
+        batch_proto = batch_proto.union(gen_batch_output)
 
-        token_rewards = self.reward_fn(batch)
+        token_rewards = self.reward_fn(batch_proto)
         per_sample_rewards = token_rewards.sum(dim=-1)
         
         per_sample_rewards = per_sample_rewards.view(B, n)
