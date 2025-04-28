@@ -305,9 +305,7 @@ class CurriculumSampler(Sampler):
 
     def _initial_sample(self):
         """Sample 512 problems, run 8 trials each, and assign n."""
-        print(f"[DEBUG] Dataset size: {len(self.dataset)}")
-        indices = random.sample(range(len(self.dataset)), min(len(self.dataset), 512))
-        print(f"[DEBUG] Sampled {len(indices)} problems")
+        indices = random.sample(range(len(self.dataset)), 512)
         self.active_problems = indices
         self.problem_n = {}
 
@@ -418,8 +416,7 @@ class CurriculumSampler(Sampler):
         self.step_counter += 1
 
     def __len__(self):
-        # Not exact; length changes dynamically. We assume a large enough number.
-        return sum(self.problem_n.values())
+        return len(self.dataset)
 
 def curriculum_collate_fn(batch):
     """
