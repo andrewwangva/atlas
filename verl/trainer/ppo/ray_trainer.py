@@ -454,6 +454,7 @@ class RayPPOTrainer(object):
             raise NotImplementedError
 
         self._validate_config()
+        self.init_workers()
         self._create_dataloader()
 
     def _validate_config(self):
