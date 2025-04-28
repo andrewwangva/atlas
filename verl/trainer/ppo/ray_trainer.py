@@ -336,6 +336,7 @@ class CurriculumSampler(Sampler):
             problem = self.dataset[idx]
 
             for _ in range(n_trials):
+                print("Keys", problem.keys())
                 batch["prompt"].append(problem["prompt"])
                 batch["prompt_token_ids"].append(problem["input_ids"])
                 batch["prompt_token_mask"].append(torch.ones_like(problem["input_ids"]))
