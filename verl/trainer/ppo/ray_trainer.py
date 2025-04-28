@@ -404,29 +404,29 @@ class CurriculumSampler(Sampler):
         if self.step_counter % self.refresh_every == 0 or len(self.problem_n) == 0:
             self._initial_sample()
 
-        batch = []
         problems = list(self.problem_n.keys())
         random.shuffle(problems)
 
         for idx in problems:
-            batch.append(idx)
+            yield (idx, self.problem_n[idx])  # return (index, n)
             self.problem_n[idx] -= 1
             if self.problem_n[idx] == 0:
                 del self.problem_n[idx]
-
-            if len(batch) == self.batch_size:
-                yield from batch
-                batch = []
-
-        # If there are leftover problems (batch incomplete at end)
-        if batch:
-            yield from batch
 
         self.step_counter += 1
 
     def __len__(self):
         # Not exact; length changes dynamically. We assume a large enough number.
         return sum(self.problem_n.values())
+
+def curriculum_collate_fn(batch):
+    """
+    batch is a list of (sample, n) pairs
+    """
+    samples, ns = zip(*batch)
+    batch = collate_fn(samples)  # your existing collate_fn for samples
+    batch["n"] = torch.tensor(ns)  # attach n's to batch
+    return batch
 
 
 class RayPPOTrainer(object):
@@ -613,9 +613,9 @@ class RayPPOTrainer(object):
                                                    batch_size=self.config.data.gen_batch_size,
                                                    num_workers=8,
                                                    drop_last=True,
-                                                   collate_fn=collate_fn,
+                                                   collate_fn=curriculum_collate_fn,
                                                    sampler=sampler)
-
+ 
         self.val_dataset = RLHFDataset(parquet_files=self.config.data.val_files,
                                        tokenizer=self.tokenizer,
                                        processor=self.processor,
@@ -1158,7 +1158,7 @@ class RayPPOTrainer(object):
                     batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
-                    batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
+                    batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
                     batch = batch.union(gen_batch_output)
                     if(self.config.data.CL == "entropy"):
                         batch = self.filter_by_highest_entropy(

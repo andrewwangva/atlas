@@ -588,43 +588,37 @@ class DataProto:
             non_tensor_batch=spliced_non_tensor,
             meta_info=self.meta_info
         )
-    def repeat(self, repeat_times=2, interleave=True):
+    def repeat(self, repeat_times: Union[int, torch.Tensor], interleave=True):
         """
         Repeat the batch data a specified number of times.
 
         Args:
-            repeat_times (int): Number of times to repeat the data.
+            repeat_times (int or torch.Tensor): Number of times to repeat the data. Can be tensor of shape (batch_size,)
             interleave (bool): Whether to interleave the repeated data.
 
         Returns:
             DataProto: A new DataProto with repeated data.
         """
-        if self.batch is not None:
-            if interleave:
-                # Interleave the data
-                repeated_tensors = {
-                    key: tensor.repeat_interleave(repeat_times, dim=0) for key, tensor in self.batch.items()
-                }
-            else:
-                # Stack the data
-                repeated_tensors = {
-                    key: tensor.unsqueeze(0).expand(repeat_times, *tensor.shape).reshape(-1, *tensor.shape[1:])
-                    for key, tensor in self.batch.items()
-                }
+        if isinstance(repeat_times, int):
+        repeat_times = torch.full((len(self),), repeat_times, device=self.batch.device)
 
+        assert isinstance(repeat_times, torch.Tensor), "repeat_times must be int or Tensor"
+
+        if self.batch is not None:
+            repeated_tensors = {
+                key: tensor.repeat_interleave(repeat_times, dim=0) for key, tensor in self.batch.items()
+            }
             repeated_batch = TensorDict(
                 source=repeated_tensors,
-                batch_size=(self.batch.batch_size[0] * repeat_times,),
+                batch_size=(repeat_times.sum().item(),),
             )
         else:
             repeated_batch = None
 
         repeated_non_tensor_batch = {}
         for key, val in self.non_tensor_batch.items():
-            if interleave:
-                repeated_non_tensor_batch[key] = np.repeat(val, repeat_times, axis=0)
-            else:
-                repeated_non_tensor_batch[key] = np.tile(val, (repeat_times,) + (1,) * (val.ndim - 1))
+            # np.repeat supports per-element repeats
+            repeated_non_tensor_batch[key] = np.repeat(val, repeat_times.cpu().numpy(), axis=0)
 
         return DataProto(
             batch=repeated_batch,
