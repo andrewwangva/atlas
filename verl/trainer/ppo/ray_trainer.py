@@ -371,48 +371,19 @@ class CurriculumSampler(Sampler):
             elif n_correct in [3, 4]:
                 self.problem_n[idx] = 4
     def __iter__(self):
-        if self.step_counter % self.refresh_every == 0 or len(self.problem_n) == 0:
+        if len(self.problem_n) == 0:
             self._initial_sample()
 
         problems = list(self.problem_n.keys())
         random.shuffle(problems)
 
         for idx in problems:
-            yield (idx, self.problem_n[idx])  # return (index, n)
-            self.problem_n[idx] -= 1
-            if self.problem_n[idx] == 0:
-                del self.problem_n[idx]
-
-        self.step_counter += 1
+            for _ in range(self.problem_n[idx]):
+                yield (idx, self.problem_n[idx])  # return (index, n)
+            del self.problem_n[idx]
 
     def __len__(self):
-        return len(self.dataset)
-
-class CurriculumDataset:
-    def __init__(self, original_dataset):
-        self.original_dataset = original_dataset
-        
-    def __len__(self):
-        return len(self.original_dataset)
-        
-    def __getitem__(self, item):
-        # Handle the (index, n) tuple from the sampler
-        if isinstance(item, tuple):
-            index, n = item
-            sample = self.original_dataset[index]
-            # Add 'n' to the sample
-            if isinstance(sample, dict):
-                sample['n'] = n
-            else:
-                # If the sample is not a dict, you might need to adapt this
-                # depending on what type it actually is
-                sample = {'data': sample, 'n': n}
-            return sample
-        else:
-            # Handle normal index case
-            return self.original_dataset[item]
-
-
+        return sum(self.problem_n.values())
 
 class RayPPOTrainer(object):
     """
@@ -596,7 +567,7 @@ class RayPPOTrainer(object):
             sampler = CurriculumSampler(self.train_dataset, actor_rollout_wg=self.actor_rollout_wg, 
                                         reward_fn = self.reward_fn, batch_size = self.config.data.gen_batch_size)
         
-        self.train_dataloader = StatefulDataLoader(dataset=CurriculumDataset(self.train_dataset),
+        self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
                                                    batch_size=self.config.data.gen_batch_size,
                                                    num_workers=8,
                                                    drop_last=True,
@@ -1106,7 +1077,7 @@ class RayPPOTrainer(object):
                 timing_raw = {}
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
-
+                print("Batch keys", batch.batch.keys())
                 # pop those keys for generation
                 if 'multi_modal_inputs' in batch.non_tensor_batch.keys():
                     gen_batch = batch.pop(
@@ -1145,7 +1116,7 @@ class RayPPOTrainer(object):
                     batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
-                    batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
+                    #batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
                     batch = batch.union(gen_batch_output)
                     if(self.config.data.CL == "entropy"):
                         batch = self.filter_by_highest_entropy(
