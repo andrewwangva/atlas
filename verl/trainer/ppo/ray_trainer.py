@@ -307,7 +307,7 @@ class CurriculumSampler(Sampler):
 
     def _initial_sample(self):
         """Sample 512 problems, run 8 trials each, and assign n."""
-        indices = random.sample(range(len(self.dataset)), 512)
+        indices = random.sample(range(len(self.dataset)), 256)
         self.active_problems = indices
         self.problem_n = {}
 
@@ -344,7 +344,8 @@ class CurriculumSampler(Sampler):
 
         token_rewards = self.reward_fn(batch_proto)
         per_sample_rewards = token_rewards.sum(dim=-1)
-        
+        total_size = batch_proto.batch["responses"].shape[0]
+        B = total_size // n
         per_sample_rewards = per_sample_rewards.view(B, n)
 
         # 5) Decide correctness. For example, threshold=0.5 or 0.0, etc. Adjust as needed.
