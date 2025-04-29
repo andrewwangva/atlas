@@ -329,9 +329,12 @@ class CurriculumSampler(Sampler):
 
         # Step 3: Create a single DataProto
         batch_proto = DataProto.from_single_dict(batch)
-
+        gen_batch = batch_proto.pop(
+                        batch_keys=['input_ids', 'attention_mask', 'position_ids'],
+                        non_tensor_batch_keys=['raw_prompt_ids'],
+                    )
         # Step 4: Generate outputs
-        gen_batch_output = self.actor_rollout_wg.generate_sequences(batch_proto)
+        gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
 
         # Step 5: Count correct answers
         correct_counts = {idx: 0 for idx in indices}
