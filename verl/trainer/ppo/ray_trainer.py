@@ -388,14 +388,30 @@ class CurriculumSampler(Sampler):
     def __len__(self):
         return len(self.dataset)
 
-def curriculum_collate_fn(batch):
-    """
-    batch is a list of (sample, n) pairs
-    """
-    samples, ns = zip(*batch)
-    batch = collate_fn(samples)  # your existing collate_fn for samples
-    batch["n"] = torch.tensor(ns)  # attach n's to batch
-    return batch
+class CurriculumDataset:
+    def __init__(self, original_dataset):
+        self.original_dataset = original_dataset
+        
+    def __len__(self):
+        return len(self.original_dataset)
+        
+    def __getitem__(self, item):
+        # Handle the (index, n) tuple from the sampler
+        if isinstance(item, tuple):
+            index, n = item
+            sample = self.original_dataset[index]
+            # Add 'n' to the sample
+            if isinstance(sample, dict):
+                sample['n'] = n
+            else:
+                # If the sample is not a dict, you might need to adapt this
+                # depending on what type it actually is
+                sample = {'data': sample, 'n': n}
+            return sample
+        else:
+            # Handle normal index case
+            return self.original_dataset[item]
+
 
 
 class RayPPOTrainer(object):
@@ -580,11 +596,11 @@ class RayPPOTrainer(object):
             sampler = CurriculumSampler(self.train_dataset, actor_rollout_wg=self.actor_rollout_wg, 
                                         reward_fn = self.reward_fn, batch_size = self.config.data.gen_batch_size)
         
-        self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
+        self.train_dataloader = StatefulDataLoader(dataset=CurriculumDataset(self.train_dataset),
                                                    batch_size=self.config.data.gen_batch_size,
                                                    num_workers=8,
                                                    drop_last=True,
-                                                   collate_fn=curriculum_collate_fn,
+                                                   collate_fn=collate_fn,
                                                    sampler=sampler)
  
         self.val_dataset = RLHFDataset(parquet_files=self.config.data.val_files,
