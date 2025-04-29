@@ -345,8 +345,8 @@ class CurriculumSampler(Sampler):
         token_rewards = self.reward_fn(batch_proto)
         per_sample_rewards = token_rewards.sum(dim=-1)
         total_size = batch_proto.batch["responses"].shape[0]
-        B = total_size // n
-        per_sample_rewards = per_sample_rewards.view(B, n)
+        B = total_size // 8
+        per_sample_rewards = per_sample_rewards.view(B, 8)
 
         # 5) Decide correctness. For example, threshold=0.5 or 0.0, etc. Adjust as needed.
         correctness_mask = (per_sample_rewards > 0.5)
