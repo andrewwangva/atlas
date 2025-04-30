@@ -304,7 +304,8 @@ class CurriculumSampler(Sampler):
         self.problem_n = {}  # index -> n (repetitions)
         self.step_counter = 0
         self.refresh_every = 5
-
+        
+        self._initial_sample()
     def _initial_sample(self):
         """Sample 512 problems, run 8 trials each, and assign n."""
         print("LENGTH OF DATA, ", len(self.dataset))
