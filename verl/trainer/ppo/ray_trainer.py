@@ -379,7 +379,7 @@ class CurriculumSampler(Sampler):
 
         for idx in problems:
             for _ in range(self.problem_n[idx]):
-                yield idx
+                yield 5
             del self.problem_n[idx]
 
     def __len__(self):
