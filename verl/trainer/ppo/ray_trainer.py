@@ -383,7 +383,7 @@ class CurriculumSampler(Sampler):
 
         for idx in problems:
             for _ in range(self.problem_n[idx]):
-                yield 5
+                yield idx
             del self.problem_n[idx]
 
     def __len__(self):
@@ -1117,7 +1117,7 @@ class RayPPOTrainer(object):
 
                             del gen_baseline_batch, gen_baseline_output
 
-                    batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
+                    batch.non_tensor_batch['uid'] = np.array([str(batch.non_tensor_batch["item"][i]) for i in range(len(batch.batch))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
                     #batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
