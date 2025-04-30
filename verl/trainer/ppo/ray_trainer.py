@@ -1209,6 +1209,7 @@ class RayPPOTrainer(object):
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
                         torch.set_printoptions(profile="full")
+                        print("First Rewards: ", batch.batch['token_level_rewards'].sum(dim=-1))
                         print("First advantages:", batch.batch['advantages'][:, 0])
                         torch.set_printoptions(profile="default")
                     # update critic
