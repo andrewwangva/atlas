@@ -336,7 +336,7 @@ class CurriculumSampler(Sampler):
                         non_tensor_batch_keys=['raw_prompt_ids'],
                     )
         # Step 4: Generate outputs
-        gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
+        gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch, n=8)
 
         # Step 5: Count correct answers
         correct_counts = {idx: 0 for idx in indices}
