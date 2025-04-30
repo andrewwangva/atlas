@@ -1208,7 +1208,9 @@ class RayPPOTrainer(object):
                                                   gamma=self.config.algorithm.gamma,
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
+                        torch.set_printoptions(profile="full")
                         print("Advantages", batch.batch['advantages'])
+                        torch.set_printoptions(profile="default")
                     # update critic
                     if self.use_critic:
                         with _timer('update_critic', timing_raw):
