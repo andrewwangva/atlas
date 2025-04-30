@@ -157,7 +157,6 @@ class RLHFDataset(Dataset):
         """
         Note that we also return the raw_input_ids so that it can be combined with other chat template
         """
-        print("Item", item)
         row_dict: dict = self.dataframe.iloc[item].to_dict()
 
         chat = row_dict.pop(self.prompt_key)
@@ -220,7 +219,7 @@ class RLHFDataset(Dataset):
         # add index for each prompt
         index = row_dict.get("extra_info", {}).get("index", 0)
         row_dict["index"] = index
-        row_dict["uid"] = item
+        row_dict["item"] = item
         return row_dict
 
     def __getstate__(self):
