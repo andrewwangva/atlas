@@ -364,15 +364,15 @@ class CurriculumSampler(Sampler):
         for idx in indices:
             n_correct = correct_counts[idx]
 
-            if n_correct > 4:
+            if n_correct > 4 or n_correct == 0:
                 continue  # discard
-            if n_correct == 0:
-                self.problem_n[idx] = 32
             elif n_correct == 1:
-                self.problem_n[idx] = 16
+                self.problem_n[idx] = 32
             elif n_correct == 2:
+                self.problem_n[idx] = 16
+            elif n_correct == 3:
                 self.problem_n[idx] = 8
-            elif n_correct in [3, 4]:
+            elif n_correct == 4:
                 self.problem_n[idx] = 4
     def __iter__(self):
         if len(self.problem_n) == 0:
@@ -1208,7 +1208,7 @@ class RayPPOTrainer(object):
                                                   gamma=self.config.algorithm.gamma,
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
-
+                        print("Advantages", batch.batch['advantages'])
                     # update critic
                     if self.use_critic:
                         with _timer('update_critic', timing_raw):
