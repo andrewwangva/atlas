@@ -566,8 +566,6 @@ class RayPPOTrainer(object):
         else:
             sampler = CurriculumSampler(self.train_dataset, actor_rollout_wg=self.actor_rollout_wg, 
                                         reward_fn = self.reward_fn, batch_size = self.config.data.gen_batch_size)
-        print("Sampler is", type(sampler))
-        print("Sampler yields", list(itertools.islice(sampler, 20)))
         self.train_dataloader = StatefulDataLoader(dataset=self.train_dataset,
                                                    batch_size=self.config.data.gen_batch_size,
                                                    num_workers=8,
@@ -1079,7 +1077,8 @@ class RayPPOTrainer(object):
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
                 print("Batch keys", batch.non_tensor_batch.keys())
-                print("Batch item", batch.non_tensor_batch["item"])
+                print("Batch 0", batch.non_tensor_batch["0"])
+                print("Batch 1", batch.non_tensor_batch["1"])
                 # pop those keys for generation
                 if 'multi_modal_inputs' in batch.non_tensor_batch.keys():
                     gen_batch = batch.pop(
