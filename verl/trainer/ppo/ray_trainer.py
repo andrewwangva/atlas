@@ -343,8 +343,8 @@ class CurriculumSampler(Sampler):
         correct_counts = {idx: 0 for idx in indices}
         
         batch_proto = batch_proto.repeat(repeat_times=8, interleave=True)
-        print("gen_batch_output", gen_batch_output["responses"].shape[0])
-        print("gen_batch", gen_batch["input_ids"].shape[0])
+        print("gen_batch_output", gen_batch_output.batch["responses"].shape[0])
+        print("gen_batch", gen_batch.batch["input_ids"].shape[0])
         batch_proto = batch_proto.union(gen_batch_output)
 
         token_rewards = self.reward_fn(batch_proto)
