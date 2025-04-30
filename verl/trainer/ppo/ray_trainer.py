@@ -326,6 +326,7 @@ class CurriculumSampler(Sampler):
         """
 
         problems = [self.dataset[idx] for idx in indices for _ in range(n_trials)]
+        print("DATASET", self.dataset[0])
         batch = collate_fn(problems)
 
         # Step 3: Create a single DataProto
