@@ -1209,7 +1209,7 @@ class RayPPOTrainer(object):
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
                         torch.set_printoptions(profile="full")
-                        print("Advantages", batch.batch['advantages'])
+                        print("First advantages:", batch.batch['advantages'][:, 0])
                         torch.set_printoptions(profile="default")
                     # update critic
                     if self.use_critic:
