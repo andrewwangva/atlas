@@ -1117,7 +1117,7 @@ class RayPPOTrainer(object):
 
                             del gen_baseline_batch, gen_baseline_output
 
-                    batch.non_tensor_batch['uid'] = np.array([str(batch.non_tensor_batch["item"][i]) for i in range(len(batch.batch))],
+                    batch.non_tensor_batch['uid'] = np.array([str(batch.non_tensor_batch["item"][i]) for i in range(len(batch.non_tensor_batch["item"]))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
                     #batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
