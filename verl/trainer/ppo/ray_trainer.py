@@ -1081,8 +1081,7 @@ class RayPPOTrainer(object):
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
                 print("Batch keys", batch.non_tensor_batch.keys())
-                print("Batch 0", batch.non_tensor_batch["0"])
-                print("Batch 1", batch.non_tensor_batch["1"])
+                print("Batch item", batch.non_tensor_batch["item"])
                 # pop those keys for generation
                 if 'multi_modal_inputs' in batch.non_tensor_batch.keys():
                     gen_batch = batch.pop(
