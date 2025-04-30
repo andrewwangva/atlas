@@ -326,7 +326,6 @@ class CurriculumSampler(Sampler):
         """
 
         problems = [self.dataset[idx] for idx in indices for _ in range(n_trials)]
-        print("DATASET", self.dataset[0])
         batch = collate_fn(problems)
 
         # Step 3: Create a single DataProto
@@ -1078,7 +1077,7 @@ class RayPPOTrainer(object):
                 timing_raw = {}
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
-                print("Batch keys", batch.non_tensor_batch.keys())
+                print("Batch keys", batch.non_tensor_batch["index"])
                 print("Batch size", batch.batch['input_ids'].shape[0])
                 # pop those keys for generation
                 if 'multi_modal_inputs' in batch.non_tensor_batch.keys():
