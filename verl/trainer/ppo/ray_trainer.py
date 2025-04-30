@@ -326,7 +326,7 @@ class CurriculumSampler(Sampler):
             self.problem_n dictionary mapping problem idx -> n
         """
 
-        problems = [self.dataset[idx] for idx in indices for _ in range(n_trials)]
+        problems = [self.dataset[idx] for idx in indices]
         batch = collate_fn(problems)
 
         # Step 3: Create a single DataProto
@@ -335,7 +335,7 @@ class CurriculumSampler(Sampler):
                         batch_keys=['input_ids', 'attention_mask', 'position_ids'],
                         non_tensor_batch_keys=['raw_prompt_ids'],
                     )
-        gen_batch.meta_info['n'] = 8
+        gen_batch.meta_info['n'] = n_trials
         # Step 4: Generate outputs
         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
 
