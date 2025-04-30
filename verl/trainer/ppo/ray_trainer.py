@@ -378,9 +378,8 @@ class CurriculumSampler(Sampler):
         random.shuffle(problems)
 
         for idx in problems:
-            print("PRINT", idx, self.problem_n[idx])
             for _ in range(self.problem_n[idx]):
-                yield (idx, self.problem_n[idx])  # return (index, n)
+                yield idx
             del self.problem_n[idx]
 
     def __len__(self):
