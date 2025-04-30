@@ -1077,7 +1077,8 @@ class RayPPOTrainer(object):
                 timing_raw = {}
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
-                print("Batch keys", batch.batch.keys())
+                print("Batch keys", batch.non_tensor_batch["uid"])
+                print("Batch size", batch.batch['raw_prompt_ids'].shape[0])
                 # pop those keys for generation
                 if 'multi_modal_inputs' in batch.non_tensor_batch.keys():
                     gen_batch = batch.pop(
