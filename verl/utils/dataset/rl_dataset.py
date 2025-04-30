@@ -45,7 +45,7 @@ def collate_fn(data_list: list[dict]) -> dict:
     for key, val in non_tensors.items():
         non_tensors[key] = np.array(val, dtype=object)
 
-    return {**tensors, **non_tensors}
+return {**tensors, **non_tensors}
 
 
 def process_image(image: dict, max_pixels: int = 2048 * 2048, min_pixels: int = 512 * 512):
@@ -219,7 +219,7 @@ class RLHFDataset(Dataset):
         # add index for each prompt
         index = row_dict.get("extra_info", {}).get("index", 0)
         row_dict["index"] = index
-
+        row_dict["uid"] = item
         return row_dict
 
     def __getstate__(self):
