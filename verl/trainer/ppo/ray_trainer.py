@@ -309,7 +309,7 @@ class CurriculumSampler(Sampler):
     def _initial_sample(self):
         """Sample 512 problems, run 8 trials each, and assign n."""
         print("LENGTH OF DATA, ", len(self.dataset))
-        indices = random.sample(range(len(self.dataset)), 512)
+        indices = random.sample(range(len(self.dataset)), 2048)
         self.active_problems = indices
         self.problem_n = {}
 
