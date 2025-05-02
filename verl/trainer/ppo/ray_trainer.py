@@ -364,7 +364,7 @@ class CurriculumSampler(Sampler):
         for idx in indices:
             n_correct = correct_counts[idx]
 
-            if n_correct > 4 or n_correct == 0:
+            if n_correct > 6:
                 continue  # discard
             elif n_correct == 1:
                 self.problem_n[idx] = 32
@@ -372,7 +372,7 @@ class CurriculumSampler(Sampler):
                 self.problem_n[idx] = 16
             elif n_correct == 3:
                 self.problem_n[idx] = 8
-            elif n_correct == 4:
+            elif n_correct == 4 or n_correct == 5 or n_correct == 6:
                 self.problem_n[idx] = 4
     def __iter__(self):
         if len(self.problem_n) == 0:
