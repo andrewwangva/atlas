@@ -240,7 +240,7 @@ class vLLMRollout(BaseRollout):
                 'input_ids': seq,  # here input_ids become the whole sentences
                 # 'old_log_probs': log_probs, # we will recompute old log prob with actor
                 'attention_mask': attention_mask,
-                'position_ids': position_ids
+                'position_ids': position_ids,
                 'response_lengths': response_lengths
             },
             batch_size=batch_size)
