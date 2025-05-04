@@ -206,7 +206,7 @@ class vLLMRollout(BaseRollout):
             # if n = 1: (bs, response_length) ; if n > 1: (bs * n, response_length)
             response = output[0].to(idx.device)
             # log_probs = output[1].to(idx.device)
-            response_lengths = torch.tensor([len(r) for r in output[0]], device=idx.device)
+            
             if response.shape[1] < self.config.response_length:
                 response = pad_sequence_to_length(response, self.config.response_length, self.pad_token_id)
                 # log_probs = pad_sequence_to_length(log_probs, self.config.response_length, self.pad_token_id)
@@ -240,8 +240,7 @@ class vLLMRollout(BaseRollout):
                 'input_ids': seq,  # here input_ids become the whole sentences
                 # 'old_log_probs': log_probs, # we will recompute old log prob with actor
                 'attention_mask': attention_mask,
-                'position_ids': position_ids,
-                'response_lengths': response_lengths
+                'position_ids': position_ids
             },
             batch_size=batch_size)
 

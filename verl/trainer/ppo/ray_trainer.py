@@ -36,14 +36,17 @@ from verl.single_controller.base import Worker
 from verl.single_controller.ray import RayResourcePool, RayWorkerGroup, RayClassWithInitArgs
 from verl.single_controller.ray.base import create_colocated_worker_cls
 from verl.trainer.ppo import core_algos
-from verl.trainer.ppo.metric_utils import compute_data_metrics, compute_throughout_metrics, compute_timing_metrics, reduce_metrics
+from verl.trainer.ppo.metric_utils import compute_data_metrics, compute_throughout_metrics, compute_timing_metrics, reduce_metrics, _compute_response_info
 from verl.utils.seqlen_balancing import get_seqlen_balanced_partitions, log_seqlen_unbalance
 from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path
 from verl.utils.dataset.rl_dataset import RLHFDataset, collate_fn
 from verl.utils.tracking import ValidationGenerationsLogger
 from torch.utils.data import RandomSampler, SequentialSampler, Sampler
 from torchdata.stateful_dataloader import StatefulDataLoader
+from tensordict import TensorDict
 from verl.utils.reward_score import prime_math as math_reward
+
+
 
 WorkerType = Type[Worker]
 
@@ -1043,10 +1046,12 @@ class RayPPOTrainer(object):
         Returns:
             DataProto with responses truncated to max_len
         """
+        response_info = _compute_response_info(data)
+        response_lengths = response_info["response_length"]
         selected_indices = []
         for i in range(len(data)):
-            print("Response length: ", data[i].batch['response_lengths'])
-            if data[i].batch['response_lengths'] < max_len:
+            print("Response length: ", response_lengths[i])
+            if response_lengths[i] < max_len:
                 selected_indices.append(i)
             else:
                 print("Hit max length")
