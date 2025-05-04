@@ -1045,11 +1045,10 @@ class RayPPOTrainer(object):
         """
         selected_indices = []
         for i in range(len(data)):
-            for j in range(len(data[i].batch['responses'])):
-                if data[i].batch['responses'][j].size(1) < max_len:
-                    selected_indices.append(i)
-                else:
-                    print("Response length: ", data[i].batch['responses'][j].size(1))
+            if data[i].batch['responses'].size(1) < max_len:
+                selected_indices.append(i)
+            else:
+                print("Response length: ", data[i].batch['responses'].size(1))
         
         filtered_data = [data[i] for i in selected_indices]
         filtered_data = item_collate_fn(filtered_data)
