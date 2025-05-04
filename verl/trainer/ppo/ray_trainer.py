@@ -1165,7 +1165,7 @@ class RayPPOTrainer(object):
                         )
 
                     if(self.config.data.remove_max_len == True):
-                        batch = self.remove_max_len(batch, self.config.data.max_len)
+                        batch = self.remove_max_len(batch, self.config.data.max_response_length)
                     
                     accumulated_batches.append(batch)
                     accumulated_size += len(batch)
