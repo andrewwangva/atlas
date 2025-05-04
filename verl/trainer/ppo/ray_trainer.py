@@ -1032,6 +1032,31 @@ class RayPPOTrainer(object):
         filtered_data.meta_info = data.meta_info
         
         return filtered_data
+    def remove_max_len(self, data: DataProto, max_len: int) -> DataProto:
+        """
+        Remove responses that exceed the maximum length.
+        
+        Args:
+            data: DataProto containing B*n samples (B problems, each with n solutions)
+            max_len: Maximum length allowed for responses
+
+        Returns:
+            DataProto with responses truncated to max_len
+        """
+        selected_indices = []
+        for i in range(len(data)):
+            for j in range(len(data[i].batch['responses'])):
+                if data[i].batch['responses'][j].size(1) < max_len:
+                    selected_indices.append(i)
+                else:
+                    print("Response length: ", data[i].batch['responses'][j].size(1))
+        
+        filtered_data = [data[i] for i in selected_indices]
+        filtered_data = item_collate_fn(filtered_data)
+        filtered_data.meta_info = data.meta_info
+        return filtered_data
+
+
     def fit(self):
         """
         The training loop of PPO.
@@ -1139,6 +1164,9 @@ class RayPPOTrainer(object):
                             n        =  self.config.actor_rollout_ref.rollout.n,
                         )
 
+                    if(self.config.data.remove_max_len == True):
+                        batch = self.remove_max_len(batch, self.config.data.max_len)
+                    
                     accumulated_batches.append(batch)
                     accumulated_size += len(batch)
                     if(accumulated_size < self.config.data.train_batch_size*self.config.actor_rollout_ref.rollout.n):
