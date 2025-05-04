@@ -1050,11 +1050,8 @@ class RayPPOTrainer(object):
         response_lengths = response_info["response_length"]
         selected_indices = []
         for i in range(len(data)):
-            print("Response length: ", response_lengths[i])
             if response_lengths[i] < max_len:
                 selected_indices.append(i)
-            else:
-                print("Hit max length")
         
         filtered_data = [data[i] for i in selected_indices]
         filtered_data = item_collate_fn(filtered_data)
