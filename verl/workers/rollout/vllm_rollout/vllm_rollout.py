@@ -193,11 +193,9 @@ class vLLMRollout(BaseRollout):
                 'temperature': self.config.val_kwargs.temperature,
                 'n': 1,  # if validate, already repeat in ray_trainer
             }
-        kwargs['n'] = prompts.meta_info.get('n', self.sampling_params.n)
-        print("new kwargs", kwargs)
         # users can customize different sampling_params at different run
         with self.update_sampling_params(**kwargs):
-            print("final kwargs", kwargs)
+            print("sampling params", self.sampling_params)
             output = self.inference_engine.generate(
                 prompts=None,  # because we have already convert it to prompt token id
                 sampling_params=self.sampling_params,

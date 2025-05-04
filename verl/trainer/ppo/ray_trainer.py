@@ -1145,7 +1145,7 @@ class RayPPOTrainer(object):
                     batch.non_tensor_batch['uid'] = np.array([str(batch.non_tensor_batch["item"][i]) for i in range(len(batch.non_tensor_batch["item"]))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
-                    #batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
+                    batch = batch.repeat(repeat_times=batch.batch["n"], interleave=True)
                     batch = batch.union(gen_batch_output)
                     if(self.config.data.CL == "entropy"):
                         batch = self.filter_by_highest_entropy(
