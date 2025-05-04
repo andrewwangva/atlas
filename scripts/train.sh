@@ -3,6 +3,7 @@ data.train_files=$DATA_DIR/train.parquet \
 data.val_files=$DATA_DIR/test.parquet \
 data.train_batch_size=64 \
 data.gen_batch_size=128 \
+data.remove_max_len=True \
 data.CL="entropy" \
 data.val_batch_size=500 \
 data.max_prompt_length=2096 \
