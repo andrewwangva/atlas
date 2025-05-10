@@ -1013,7 +1013,7 @@ class RayPPOTrainer(object):
             problem_entropies.append((i, entropy, correctness))
             correctness_bins[correctness] += 1
         print("CORRECTNESS", correctness_bins)
-        metrics.update({f"CL/{correctness_level}": count for correctness_level, count in correctness_bins.items()})
+        metrics.update({f"CL/pre_filter/{correctness_level}": count for correctness_level, count in correctness_bins.items()})
         # Filter out problems below minimum entropy threshold and with fewer than min_correct correct solutions
         problem_entropies = [(idx, entropy, correct_count) 
                             for idx, entropy, correct_count in problem_entropies 
@@ -1026,6 +1026,23 @@ class RayPPOTrainer(object):
         problem_entropies.sort(key=lambda x: x[1], reverse=True)
         selected_indices = [idx for idx, _, _ in problem_entropies[:sample_size]]
         
+        # Track post-filtering correctness distribution
+        post_filter_correctness_bins = {i: 0 for i in range(n+1)}
+        for _, _, correct_count in problem_entropies[:sample_size]:
+            post_filter_correctness_bins[correct_count] += 1
+        
+        # Log post-filtering correctness distribution
+        metrics.update({f"CL/post_filter/{correctness_level}": count 
+                    for correctness_level, count in post_filter_correctness_bins.items()})
+        
+        # Log entropy statistics
+        selected_entropies = [entropy for _, entropy, _ in problem_entropies[:sample_size]]
+        if selected_entropies:
+            metrics.update({
+                "CL/entropy/mean": sum(selected_entropies) / len(selected_entropies),
+                "CL/entropy/min": min(selected_entropies),
+                "CL/entropy/max": max(selected_entropies)
+            })
         # Select the problems with highest entropy
         selected_data = [folded_data[i] for i in selected_indices]
         filtered_data = item_collate_fn(selected_data)
