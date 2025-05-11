@@ -1124,8 +1124,6 @@ class RayPPOTrainer(object):
                 timing_raw = {}
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
-                print("Batch keys", batch.non_tensor_batch.keys())
-                print("Batch item", batch.non_tensor_batch["item"])
                 # pop those keys for generation
                 if 'multi_modal_inputs' in batch.non_tensor_batch.keys():
                     gen_batch = batch.pop(
@@ -1256,10 +1254,6 @@ class RayPPOTrainer(object):
                                                   gamma=self.config.algorithm.gamma,
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
-                        torch.set_printoptions(profile="full")
-                        print("First Rewards: ", batch.batch['token_level_rewards'].sum(dim=-1))
-                        print("First advantages:", batch.batch['advantages'][:, 0])
-                        torch.set_printoptions(profile="default")
                     # update critic
                     if self.use_critic:
                         with _timer('update_critic', timing_raw):
