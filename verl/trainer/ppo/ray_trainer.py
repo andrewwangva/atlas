@@ -365,7 +365,6 @@ class CurriculumSampler(Sampler):
         for idx in self.active_problems:
             yield idx
 
-
     def __len__(self):
         return 64
 
@@ -918,7 +917,14 @@ class RayPPOTrainer(object):
 
         # 6) Which problems have at least `min_correct` correct solutions?
         keep_problem_indices = torch.nonzero((num_correct_each >= min_correct) & (num_correct_each <= max_correct)).squeeze(-1)  # shape (K,)
-
+        post_filter_correctness_bins = {i: 0 for i in range(n+1)}
+        for idx in keep_problem_indices:
+            count = num_correct_each[idx].item()
+            post_filter_correctness_bins[count] += 1
+        
+        metrics.update({f"CL/post_filter/{correctness_level}": count 
+                      for correctness_level, count in post_filter_correctness_bins.items()})
+        
         # 7) Filter out problems that don't meet the threshold => now shape (K, n).
         # Extract and combine selected indices into a new DataProto
         selected_data = [folded_data[i] for i in keep_problem_indices]
