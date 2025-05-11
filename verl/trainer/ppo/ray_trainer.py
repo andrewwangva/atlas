@@ -1194,6 +1194,8 @@ class RayPPOTrainer(object):
                         
                         metrics.update({f"CL/post_filter/{correctness_level}": count 
                                     for correctness_level, count in post_filter_correctness_bins.items()})
+                    if(self.config.data.remove_max_len == True):
+                        batch = self.remove_max_len(batch, self.config.data.max_response_length)
                     
                     accumulated_batches.append(batch)
                     accumulated_size += len(batch)
@@ -1209,10 +1211,6 @@ class RayPPOTrainer(object):
                     batch = batch.splice(self.config.data.train_batch_size*self.config.actor_rollout_ref.rollout.n)
                     accumulated_batches = []
                     accumulated_size = 0
-
-
-                    if(self.config.data.remove_max_len == True):
-                        batch = self.remove_max_len(batch, self.config.data.max_response_length)
                     batch.batch['response_mask'] = compute_response_mask(batch)
                     # balance the number of valid tokens on each dp rank.
                     # Note that this breaks the order of data inside the batch.
