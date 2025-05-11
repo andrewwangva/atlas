@@ -303,18 +303,17 @@ class CurriculumSampler(Sampler):
         self.reward_fn = reward_fn
         self.device = device
         self.active_problem_indices = []  # list of ints
+        self.repeat_times = 10
+        self.counter = 0
         self.batch_size = batch_size
-        self.problem_n = {}  # index -> n (repetitions)
         self.step_counter = 0
-        self.refresh_every = 5
         
         self._initial_sample()
     def _initial_sample(self):
         """Sample 512 problems, run 8 trials each, and assign n."""
         print("LENGTH OF DATA, ", len(self.dataset))
-        indices = random.sample(range(len(self.dataset)), 2048)
+        indices = random.sample(range(len(self.dataset)), 256)
         self.active_problems = indices
-        self.problem_n = {}
 
         self._simulate_trials(indices, n_trials=8)
     def _simulate_trials(self, indices, n_trials=8):
@@ -341,56 +340,34 @@ class CurriculumSampler(Sampler):
         gen_batch.meta_info['n'] = n_trials
         # Step 4: Generate outputs
         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
-
-        # Step 5: Count correct answers
-        correct_counts = {idx: 0 for idx in indices}
         
         batch_proto = batch_proto.repeat(repeat_times=8, interleave=True)
         print("gen_batch_output", gen_batch_output.batch["responses"].shape[0])
         print("gen_batch", gen_batch.batch["input_ids"].shape[0])
         batch_proto = batch_proto.union(gen_batch_output)
+        batch_proto = self.filter_by_highest_entropy(
+                            data      = batch,
+                            n        =  self.config.actor_rollout_ref.rollout.n,
+                            sample_size = self.config.data.train_batch_size,
+                            metrics = metrics,
+                            min_entropy_threshold = 1.0,
+                            min_correct = 1
+                        )
 
-        token_rewards = self.reward_fn(batch_proto)
-        per_sample_rewards = token_rewards.sum(dim=-1)
-        total_size = batch_proto.batch["responses"].shape[0]
-        B = total_size // 8
-        per_sample_rewards = per_sample_rewards.view(B, 8)
-
-        # 5) Decide correctness. For example, threshold=0.5 or 0.0, etc. Adjust as needed.
-        correctness_mask = (per_sample_rewards > 0.5)
-        print(type(correctness_mask), correctness_mask.shape)
-        for is_correct, idx in zip(correctness_mask, indices):
-            correct_counts[idx] += is_correct.sum(-1)
-        
-        
-        # Step 6: Assign n
-        for idx in indices:
-            n_correct = correct_counts[idx]
-
-            if n_correct > 6:
-                continue  # discard
-            elif n_correct == 1:
-                self.problem_n[idx] = 32
-            elif n_correct == 2:
-                self.problem_n[idx] = 16
-            elif n_correct == 3:
-                self.problem_n[idx] = 8
-            elif n_correct == 4 or n_correct == 5 or n_correct == 6:
-                self.problem_n[idx] = 4
+        for idx in batch.non_tensor_batch["item"]:
+            self.active_problems.append(idx)
     def __iter__(self):
-        if len(self.problem_n) == 0:
-            self._initial_sample()
+        if self.counter == 0:
+            self.initial_sample()
+            self.counter += 10
+        
+        self.counter -= 1
+        for idx in self.active_problems:
+            yield idx
 
-        problems = list(self.problem_n.keys())
-        random.shuffle(problems)
-
-        for idx in problems:
-            for _ in range(self.problem_n[idx]):
-                yield idx
-            del self.problem_n[idx]
 
     def __len__(self):
-        return sum(self.problem_n.values())
+        return 64
 
 class RayPPOTrainer(object):
     """
