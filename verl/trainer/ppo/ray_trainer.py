@@ -1172,7 +1172,28 @@ class RayPPOTrainer(object):
                             n        =  self.config.actor_rollout_ref.rollout.n,
                             metrics = metrics
                         )
-
+                    if len(batch) > 0:
+                        # Fold the batch to count correctness per problem
+                        total_size = batch.batch["responses"].shape[0]
+                        B_post = total_size // self.config.actor_rollout_ref.rollout.n
+                        folded_batch = fold_batch_dim(batch, new_batch_size=B_post)
+                        
+                        # Recompute rewards for the filtered batch
+                        token_rewards = self.reward_fn(batch)
+                        per_sample_rewards = token_rewards.sum(dim=-1)
+                        per_sample_rewards = per_sample_rewards.view(B_post, self.config.actor_rollout_ref.rollout.n)
+                        
+                        # Count correctness
+                        correctness_mask = (per_sample_rewards > 0.5)
+                        num_correct_each = correctness_mask.sum(dim=-1)
+                        
+                        # Track post-filtering correctness distribution
+                        post_filter_correctness_bins = {i: 0 for i in range(self.config.actor_rollout_ref.rollout.n+1)}
+                        for count in num_correct_each:
+                            post_filter_correctness_bins[count.item()] += 1
+                        
+                        metrics.update({f"CL/post_filter/{correctness_level}": count 
+                                    for correctness_level, count in post_filter_correctness_bins.items()})
                     if(self.config.data.remove_max_len == True):
                         batch = self.remove_max_len(batch, self.config.data.max_response_length)
                     
