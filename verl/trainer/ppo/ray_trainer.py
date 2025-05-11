@@ -345,7 +345,7 @@ class CurriculumSampler(Sampler):
         print("gen_batch_output", gen_batch_output.batch["responses"].shape[0])
         print("gen_batch", gen_batch.batch["input_ids"].shape[0])
         batch_proto = batch_proto.union(gen_batch_output)
-        batch_proto = self.filter_by_highest_entropy(
+        batch_proto = self.filter_by_correctness(
                             data      = batch,
                             n        =  self.config.actor_rollout_ref.rollout.n,
                             sample_size = self.config.data.train_batch_size,
@@ -1194,8 +1194,6 @@ class RayPPOTrainer(object):
                         
                         metrics.update({f"CL/post_filter/{correctness_level}": count 
                                     for correctness_level, count in post_filter_correctness_bins.items()})
-                    if(self.config.data.remove_max_len == True):
-                        batch = self.remove_max_len(batch, self.config.data.max_response_length)
                     
                     accumulated_batches.append(batch)
                     accumulated_size += len(batch)
@@ -1211,6 +1209,10 @@ class RayPPOTrainer(object):
                     batch = batch.splice(self.config.data.train_batch_size*self.config.actor_rollout_ref.rollout.n)
                     accumulated_batches = []
                     accumulated_size = 0
+
+
+                    if(self.config.data.remove_max_len == True):
+                        batch = self.remove_max_len(batch, self.config.data.max_response_length)
                     batch.batch['response_mask'] = compute_response_mask(batch)
                     # balance the number of valid tokens on each dp rank.
                     # Note that this breaks the order of data inside the batch.
