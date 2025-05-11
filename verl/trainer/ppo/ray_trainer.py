@@ -895,7 +895,7 @@ class RayPPOTrainer(object):
                                                     partitions=global_partition_lst,
                                                     prefix=logging_prefix)
         metrics.update(global_balance_stats)
-    def filter_by_correctness(self, data: DataProto, min_correct, max_correct, n) -> DataProto:
+    def filter_by_correctness(self, data: DataProto, min_correct, max_correct, n, metrics) -> DataProto:
         """
         Given a DataProto of shape [B*n], evaluate correctness of each of the n responses per problem
         using `reward_fn`. Drop entire problems that don't have at least `min_correct` correct solutions.
@@ -1170,6 +1170,7 @@ class RayPPOTrainer(object):
                             min_correct = self.config.actor_rollout_ref.rollout.low_bound,
                             max_correct = self.config.actor_rollout_ref.rollout.high_bound,
                             n        =  self.config.actor_rollout_ref.rollout.n,
+                            metrics = metrics
                         )
 
                     if(self.config.data.remove_max_len == True):
