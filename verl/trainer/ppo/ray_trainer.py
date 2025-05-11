@@ -915,6 +915,13 @@ class RayPPOTrainer(object):
         correctness_mask = (per_sample_rewards > 0.5)
         num_correct_each = correctness_mask.sum(dim=-1)  # shape (B,)
 
+        pre_filter_correctness_bins = {i: 0 for i in range(n+1)}
+        for count in num_correct_each:
+            pre_filter_correctness_bins[count.item()] += 1
+        
+        metrics.update({f"CL/pre_filter/{correctness_level}": count 
+                      for correctness_level, count in pre_filter_correctness_bins.items()})
+
         # 6) Which problems have at least `min_correct` correct solutions?
         keep_problem_indices = torch.nonzero((num_correct_each >= min_correct) & (num_correct_each <= max_correct)).squeeze(-1)  # shape (K,)
         post_filter_correctness_bins = {i: 0 for i in range(n+1)}
