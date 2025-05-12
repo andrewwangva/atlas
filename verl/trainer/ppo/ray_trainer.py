@@ -944,14 +944,13 @@ class RayPPOTrainer(object):
         filtered_data.meta_info = data.meta_info
 
         return filtered_data
-    def filter_by_highest_entropy(self, data: DataProto, n: int, sample_size: int, metrics, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
+    def filter_by_highest_entropy(self, data: DataProto, n: int, metrics, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
         """
         Filter problems to keep those with the highest answer entropy, normalized within correctness groups.
         
         Args:
             data: DataProto containing B*n samples (B problems, each with n solutions)
             n: Number of solutions per problem
-            sample_size: how many to select
             min_entropy_threshold: Minimum entropy required (problems below this are filtered out)
             min_correct: Minimum number of correct solutions required (default: 1)
             
@@ -1034,12 +1033,12 @@ class RayPPOTrainer(object):
         
         # Sort by normalized score (highest first) and take top sample_size
         normalized_scores.sort(key=lambda x: x[1], reverse=True)
-        selected_indices = [idx for idx, _, _ in normalized_scores[:sample_size]]
+        selected_indices = [idx for idx, _, _ in normalized_scores]
         
         # Track post-filtering correctness distribution
         post_filter_correctness_bins = {i: 0 for i in range(n+1)}
         for idx in selected_indices:
-            for _, _, correct_count in normalized_scores[:sample_size]:
+            for _, _, correct_count in normalized_scores:
                 post_filter_correctness_bins[correct_count] += 1
         
         metrics.update({f"CL/post_filter/{correctness_level}": count 
@@ -1185,7 +1184,6 @@ class RayPPOTrainer(object):
                         batch = self.filter_by_highest_entropy(
                             data      = batch,
                             n        =  self.config.actor_rollout_ref.rollout.n,
-                            sample_size = self.config.data.train_batch_size,
                             metrics = metrics,
                             min_entropy_threshold = 1.0,
                             min_correct = 1
