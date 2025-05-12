@@ -1129,8 +1129,6 @@ class RewardModelWorker(Worker):
         from verl.utils.seqlen_balancing import rearrange_micro_batches, get_reverse_idx
         # Support all hardwares
         #print out device
-        print(f"Current device: {torch.cuda.current_device()}")
-        self._print_longest_response(data)
         data = data.to(torch.cuda.current_device())
         if self._do_switch_chat_template:
             rm_data = self._switch_chat_template(data)
@@ -1172,43 +1170,3 @@ class RewardModelWorker(Worker):
 
         output = output.to('cpu')
         return output
-    def _print_longest_response(self, data: DataProto):
-        """Print the longest response in the batch for debugging purposes."""
-        if self.rank != 0:  # Only print from rank 0
-            return
-            
-        responses = data.batch['responses']
-        attention_mask = data.batch['attention_mask']
-        batch_size = data.batch.batch_size[0]
-        response_length = responses.shape[-1]
-        response_mask = attention_mask[:, -response_length:]
-        
-        # Calculate actual token length for each response
-        response_lengths = response_mask.sum(dim=1)
-        
-        # Find the index of the longest response
-        max_length_idx = torch.argmax(response_lengths).item()
-        max_length = response_lengths[max_length_idx].item()
-        
-        # Get the longest response tokens
-        longest_response_tokens = responses[max_length_idx, :max_length]
-        
-        # Decode the tokens to get the string
-        longest_response_text = self.tokenizer.decode(longest_response_tokens)
-        
-        print(f"\n=== LONGEST RESPONSE ({max_length} tokens) ===")
-        print(longest_response_text)
-        print("=" * 50)
-        
-        # Also print distribution of response lengths
-        length_counts = {}
-        for length in response_lengths.cpu().tolist():
-            length = int(length)
-            if length not in length_counts:
-                length_counts[length] = 0
-            length_counts[length] += 1
-        
-        print("Response length distribution:")
-        for length, count in sorted(length_counts.items()):
-            print(f"  {length} tokens: {count} responses")
-        print("=" * 50)

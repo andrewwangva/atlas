@@ -72,7 +72,9 @@ class NaiveRewardManager:
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
 
         already_print_data_sources = {}
-
+        max_response_length = 0
+        longest_response_str = ""
+        longest_response_prompt = ""
         for i in range(len(data)):
             data_item = data[i]  # DataProtoItem
 
@@ -87,10 +89,16 @@ class NaiveRewardManager:
             valid_response_length = data_item.batch['attention_mask'][prompt_length:].sum()
             valid_response_ids = response_ids[:valid_response_length]
 
+            
             # decode
             prompt_str = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
             response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
-
+            
+            if valid_response_length > max_response_length:
+                max_response_length = valid_response_length
+                longest_response_str = response_str
+                longest_response_prompt = prompt_str
+            
             ground_truth = data_item.non_tensor_batch['reward_model']['ground_truth']
 
             data_source = data_item.non_tensor_batch['data_source']
@@ -114,5 +122,9 @@ class NaiveRewardManager:
                 print("[response]", response_str)
                 print("[ground_truth]", ground_truth)
                 print("[score]", score)
+
+        print("\n[LONGEST RESPONSE]")
+        print("[prompt]", longest_response_prompt)
+        print("[response]", longest_response_str)
 
         return reward_tensor
