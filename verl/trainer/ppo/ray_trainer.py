@@ -1019,56 +1019,33 @@ class RayPPOTrainer(object):
         for idx, entropy, correct_count in problem_entropies:
             if correct_count not in correctness_groups:
                 correctness_groups[correct_count] = []
-            correctness_groups[correct_count].append((idx, entropy, correct_count))
+            correctness_groups[correct_count].append((idx, entropy))
         
-        # Normalize and select problems proportionally from each correctness group
-        selected_indices = []
-        remaining_slots = sample_size
-        
-        # First pass: calculate how many to select from each group
-        total_problems = len(problem_entropies)
-        group_allocations = {}
-        
+        # Calculate mean entropy for each correctness group
+        group_means = {}
         for correct_count, group in correctness_groups.items():
-            # Allocate slots proportionally to group size
-            group_size = len(group)
-            allocation = max(1, int(round(group_size / total_problems * sample_size)))
-            # Ensure we don't allocate more than available in the group or remaining slots
-            allocation = min(group_size, allocation, remaining_slots)
-            group_allocations[correct_count] = allocation
-            remaining_slots -= allocation
+            group_means[correct_count] = sum(entropy for _, entropy in group) / len(group)
         
-        # If we have remaining slots, allocate them to the largest groups
-        if remaining_slots > 0:
-            sorted_groups = sorted(correctness_groups.items(), key=lambda x: len(x[1]), reverse=True)
-            for correct_count, group in sorted_groups:
-                if remaining_slots <= 0:
-                    break
-                additional = min(remaining_slots, len(group) - group_allocations[correct_count])
-                group_allocations[correct_count] += additional
-                remaining_slots -= additional
+        # Calculate normalized entropy scores (entropy - group mean)
+        normalized_scores = []
+        for idx, entropy, correct_count in problem_entropies:
+            normalized_score = entropy - group_means[correct_count]
+            normalized_scores.append((idx, normalized_score, correct_count))
         
-        # Second pass: select top entropy problems from each group
-        for correct_count, group in correctness_groups.items():
-            # Sort by entropy (highest first)
-            group.sort(key=lambda x: x[1], reverse=True)
-            # Take top N from this group
-            allocation = group_allocations[correct_count]
-            selected_indices.extend([idx for idx, _, _ in group[:allocation]])
+        # Sort by normalized score (highest first) and take top sample_size
+        normalized_scores.sort(key=lambda x: x[1], reverse=True)
+        selected_indices = [idx for idx, _, _ in normalized_scores[:sample_size]]
         
         # Track post-filtering correctness distribution
         post_filter_correctness_bins = {i: 0 for i in range(n+1)}
         for idx in selected_indices:
-            for _, _, correct_count in problem_entropies:
-                if _ == idx:  # Find the matching problem
-                    post_filter_correctness_bins[correct_count] += 1
-                    break
+            for _, _, correct_count in normalized_scores[:sample_size]:
+                post_filter_correctness_bins[correct_count] += 1
         
-        # Log post-filtering correctness distribution
         metrics.update({f"CL/post_filter/{correctness_level}": count 
                     for correctness_level, count in post_filter_correctness_bins.items()})
         
-        # Log entropy statistics for selected problems
+        # Log entropy statistics
         selected_entropies = []
         for idx in selected_indices:
             for i, entropy, _ in problem_entropies:
@@ -1083,7 +1060,7 @@ class RayPPOTrainer(object):
                 "CL/entropy/max": max(selected_entropies)
             })
         
-        # Select the problems with highest entropy
+        # Select the problems with highest normalized entropy
         selected_data = [folded_data[i] for i in selected_indices]
         filtered_data = item_collate_fn(selected_data)
         
