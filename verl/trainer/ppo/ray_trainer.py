@@ -946,7 +946,7 @@ class RayPPOTrainer(object):
         return filtered_data
     def filter_by_highest_entropy(self, data: DataProto, n: int, sample_size: int, metrics, min_entropy_threshold: float = 0.0, min_correct: int = 1) -> DataProto:
         """
-        Filter problems to keep those with the highest answer entropy.
+        Filter problems to keep those with the highest answer entropy, normalized within correctness groups.
         
         Args:
             data: DataProto containing B*n samples (B problems, each with n solutions)
@@ -969,7 +969,6 @@ class RayPPOTrainer(object):
         
         # Extract generated texts for entropy computation
         generated_texts = []
-        
         
         for i in range(len(folded_data)):
             data_item = folded_data[i]  # DataProtoItem for all n responses of a problem
@@ -1002,37 +1001,88 @@ class RayPPOTrainer(object):
             
             problem_entropies.append((i, entropy, correctness))
             correctness_bins[correctness] += 1
+        
         print("CORRECTNESS", correctness_bins)
         metrics.update({f"CL/pre_filter/{correctness_level}": count for correctness_level, count in correctness_bins.items()})
+        
         # Filter out problems below minimum entropy threshold and with fewer than min_correct correct solutions
         problem_entropies = [(idx, entropy, correct_count) 
                             for idx, entropy, correct_count in problem_entropies 
                             if entropy >= min_entropy_threshold and correct_count >= min_correct]
+        
         print("LENGTH OF ENTROPY", len(problem_entropies))
         if not problem_entropies:
             return item_collate_fn([])  # Return empty batch if no problems meet criteria
         
-        # Sort by entropy (highest first) and take top target_size problems
-        problem_entropies.sort(key=lambda x: x[1], reverse=True)
-        selected_indices = [idx for idx, _, _ in problem_entropies[:sample_size]]
+        # Group problems by number of correct solutions
+        correctness_groups = {}
+        for idx, entropy, correct_count in problem_entropies:
+            if correct_count not in correctness_groups:
+                correctness_groups[correct_count] = []
+            correctness_groups[correct_count].append((idx, entropy, correct_count))
+        
+        # Normalize and select problems proportionally from each correctness group
+        selected_indices = []
+        remaining_slots = sample_size
+        
+        # First pass: calculate how many to select from each group
+        total_problems = len(problem_entropies)
+        group_allocations = {}
+        
+        for correct_count, group in correctness_groups.items():
+            # Allocate slots proportionally to group size
+            group_size = len(group)
+            allocation = max(1, int(round(group_size / total_problems * sample_size)))
+            # Ensure we don't allocate more than available in the group or remaining slots
+            allocation = min(group_size, allocation, remaining_slots)
+            group_allocations[correct_count] = allocation
+            remaining_slots -= allocation
+        
+        # If we have remaining slots, allocate them to the largest groups
+        if remaining_slots > 0:
+            sorted_groups = sorted(correctness_groups.items(), key=lambda x: len(x[1]), reverse=True)
+            for correct_count, group in sorted_groups:
+                if remaining_slots <= 0:
+                    break
+                additional = min(remaining_slots, len(group) - group_allocations[correct_count])
+                group_allocations[correct_count] += additional
+                remaining_slots -= additional
+        
+        # Second pass: select top entropy problems from each group
+        for correct_count, group in correctness_groups.items():
+            # Sort by entropy (highest first)
+            group.sort(key=lambda x: x[1], reverse=True)
+            # Take top N from this group
+            allocation = group_allocations[correct_count]
+            selected_indices.extend([idx for idx, _, _ in group[:allocation]])
         
         # Track post-filtering correctness distribution
         post_filter_correctness_bins = {i: 0 for i in range(n+1)}
-        for _, _, correct_count in problem_entropies[:sample_size]:
-            post_filter_correctness_bins[correct_count] += 1
+        for idx in selected_indices:
+            for _, _, correct_count in problem_entropies:
+                if _ == idx:  # Find the matching problem
+                    post_filter_correctness_bins[correct_count] += 1
+                    break
         
         # Log post-filtering correctness distribution
         metrics.update({f"CL/post_filter/{correctness_level}": count 
                     for correctness_level, count in post_filter_correctness_bins.items()})
         
-        # Log entropy statistics
-        selected_entropies = [entropy for _, entropy, _ in problem_entropies[:sample_size]]
+        # Log entropy statistics for selected problems
+        selected_entropies = []
+        for idx in selected_indices:
+            for i, entropy, _ in problem_entropies:
+                if i == idx:
+                    selected_entropies.append(entropy)
+                    break
+        
         if selected_entropies:
             metrics.update({
                 "CL/entropy/mean": sum(selected_entropies) / len(selected_entropies),
                 "CL/entropy/min": min(selected_entropies),
                 "CL/entropy/max": max(selected_entropies)
             })
+        
         # Select the problems with highest entropy
         selected_data = [folded_data[i] for i in selected_indices]
         filtered_data = item_collate_fn(selected_data)
