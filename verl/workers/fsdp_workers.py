@@ -1128,8 +1128,10 @@ class RewardModelWorker(Worker):
         import itertools
         from verl.utils.seqlen_balancing import rearrange_micro_batches, get_reverse_idx
         # Support all hardwares
-        data = data.to(torch.cuda.current_device())
+        #print out device
+        print(f"Current device: {torch.cuda.current_device()}")
         self._print_longest_response(data)
+        data = data.to(torch.cuda.current_device())
         if self._do_switch_chat_template:
             rm_data = self._switch_chat_template(data)
 
