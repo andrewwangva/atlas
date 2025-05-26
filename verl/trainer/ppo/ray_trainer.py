@@ -1252,6 +1252,7 @@ class RayPPOTrainer(object):
                         batch = batch.union(old_log_prob)
                     
                         with _timer('calculate_', timing_raw):
+                            log_probs = batch.batch['old_log_probs']
                             responses = batch.batch['responses']
                             response_length = responses.size(1)
                             attention_mask = batch.batch['attention_mask'][:, -response_length:]
