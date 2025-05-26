@@ -1256,15 +1256,27 @@ class RayPPOTrainer(object):
                             responses = batch.batch['responses']
                             response_length = responses.size(1)
                             attention_mask = batch.batch['attention_mask'][:, -response_length:]
-                            print("example log_probs:", log_probs[0, :10])
-                            print(torch.exp(log_probs[0, :10]))
-                            print("example attention_mask:", attention_mask[0, :10])
-                            low_prob_mask = (log_probs < -2.3026) & (attention_mask.bool()) 
                             
+                            low_prob_mask = (log_probs < -2.3026) & (attention_mask.bool()) 
                             low_prob_counts = low_prob_mask.sum(dim=-1)  # shape: (batch_size,)
                             avg_low_prob_tokens = low_prob_counts.float().mean().item()
-
                             metrics['debug/avg_low_prob_tokens'] = avg_low_prob_tokens
+
+                            # === Print full decoded sequence from index 0 ===
+                            full_sequence_ids = responses[0]  # Shape: (seq_len,)
+                            decoded_sequence = self.tokenizer.decode(full_sequence_ids, skip_special_tokens=True)
+                            print("\n[Full Decoded Sequence - Index 0]")
+                            print(decoded_sequence)
+
+                            # === Print tokens with low logprob ===
+                            print("\n[Low-Probability Tokens - Index 0]")
+                            for i in range(response_length):
+                                if low_prob_mask[0, i]:
+                                    token_id = responses[0, i].item()
+                                    token_text = self.tokenizer.decode([token_id])
+                                    token_logprob = log_probs[0, i].item()
+                                    print(f"Token: '{token_text}' | LogProb: {token_logprob:.4f}")
+
                     if self.use_reference_policy and self.config.actor_rollout_ref.actor.get('use_kl_loss', False):
                         # compute reference log_prob
                         with _timer('ref', timing_raw):
