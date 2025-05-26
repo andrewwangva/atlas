@@ -1256,8 +1256,9 @@ class RayPPOTrainer(object):
                             responses = batch.batch['responses']
                             response_length = responses.size(1)
                             attention_mask = batch.batch['attention_mask'][:, -response_length:]
-                            print("example log_probs:", log_probs[0])
-                            print("example attention_mask:", attention_mask[0])
+                            print("example log_probs:", log_probs[0, :10])
+                            print(torch.exp(log_probs[0, :10]))
+                            print("example attention_mask:", attention_mask[0, :10])
                             low_prob_mask = (log_probs < -2.3026) & (attention_mask.bool()) 
                             
                             low_prob_counts = low_prob_mask.sum(dim=-1)  # shape: (batch_size,)
