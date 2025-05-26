@@ -1250,7 +1250,18 @@ class RayPPOTrainer(object):
                     with _timer('old_log_prob', timing_raw):
                         old_log_prob = self.actor_rollout_wg.compute_log_prob(batch)
                         batch = batch.union(old_log_prob)
+                    
+                        with _timer('calculate_', timing_raw):
+                            responses = batch.batch['responses']
+                            response_length = responses.size(1)
+                            attention_mask = batch.batch['attention_mask'][:, -response_length:]
 
+                            low_prob_mask = (log_probs < -2.3026) & (attention_mask.bool()) 
+                            
+                            low_prob_counts = low_prob_mask.sum(dim=-1)  # shape: (batch_size,)
+                            avg_low_prob_tokens = low_prob_counts.float().mean().item()
+
+                            metrics['debug/avg_low_prob_tokens'] = avg_low_prob_tokens
                     if self.use_reference_policy and self.config.actor_rollout_ref.actor.get('use_kl_loss', False):
                         # compute reference log_prob
                         with _timer('ref', timing_raw):
